@@ -38,11 +38,13 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Install test browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
       - name: Real emulator and profile integration tests
         run: npm run test:e2e
       - name: Production PWA integration tests
         run: npm run test:pwa
+      - name: Safari storage and mobile regression
+        run: npm run test:webkit
       - name: Validate deployment scripts
         run: |
           bash -n deploy/upload.sh deploy/deploy.sh deploy/smoke-test.sh

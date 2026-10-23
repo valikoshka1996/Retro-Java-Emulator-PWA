@@ -117,6 +117,50 @@ describe("JAR та аналіз сумісності", () => {
   });
 });
 describe("Профілі, IndexedDB та резервні копії", () => {
+  it("записує байти замість Blob, але читає JAR, RMS та іконки як Blob", async () => {
+    const d = database(),
+      p = await createProfile("Safari", "👾", d),
+      g = await installGame(p.id, await fixture(), "x.jar", undefined, d);
+    await d.games.update(g.id, {
+      icon: new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }),
+    });
+    await saveTouchControls(
+      g.id,
+      { ...defaultTouchControls(), theme: "violet" },
+      d,
+    );
+    await d.games.update(g.id, { lastPlayed: 123 });
+    await putSave(p.id, g.id, rms("one"), d);
+    await createSlot(p.id, g.id, "copy", new Blob(["image"]), d);
+    const raw = await new Promise<any>((resolve, reject) => {
+      const request = d
+        .backendDB()
+        .transaction("games")
+        .objectStore("games")
+        .get(g.id);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    expect(raw.icon).not.toBeInstanceOf(Blob);
+    expect(raw.icon.bytes).toBeInstanceOf(ArrayBuffer);
+    expect(
+      Array.from(
+        new Uint8Array(await (await d.games.get(g.id))!.icon!.arrayBuffer()),
+      ),
+    ).toEqual([1, 2, 3]);
+    const imported = await importProfile(await exportProfile(p.id, d), d);
+    expect(
+      await d.files
+        .where("id")
+        .startsWith(imported.id + ":")
+        .count(),
+    ).toBe(1);
+    const f = (await d.files.toArray())[0];
+    expect(f.jar).toBeInstanceOf(Blob);
+    const s = (await d.slots.toArray())[0];
+    expect(s.data).toBeInstanceOf(Blob);
+    expect(s.screenshot).toBeInstanceOf(Blob);
+  });
   it("зберігає дві попередні різні RMS, відновлює й відхиляє чужий профіль", async () => {
     const d = database(),
       p = await createProfile("A", "👾", d),
@@ -189,15 +233,14 @@ describe("Профілі, IndexedDB та резервні копії", () => {
       .put({ id: "old", name: "Existing", avatar: "👾", createdAt: 1 });
     const jar = await fixture(),
       analyzed = await analyzeJar(jar, "old.jar");
-    await old
-      .table("games")
-      .put({
-        ...analyzed,
-        id: "game",
-        profileId: "old",
-        favorite: true,
-        importedAt: 1,
-      });
+    await old.table("games").put({
+      ...analyzed,
+      id: "game",
+      profileId: "old",
+      favorite: true,
+      importedAt: 1,
+      icon: new Blob([new Uint8Array([7, 8, 9])], { type: "image/png" }),
+    });
     await old.table("files").put({ id: "game", jar, filename: "old.jar" });
     await old.table("saves").put({
       id: "game",
@@ -213,6 +256,14 @@ describe("Профілі, IndexedDB та резервні копії", () => {
     expect((await current.profiles.get("old"))?.name).toBe("Existing");
     expect((await current.saves.get("game"))?.updatedAt).toBe(1);
     expect((await current.games.get("game"))?.favorite).toBe(true);
+    await saveTouchControls("game", defaultTouchControls(), current);
+    expect(
+      Array.from(
+        new Uint8Array(
+          await (await current.games.get("game"))!.icon!.arrayBuffer(),
+        ),
+      ),
+    ).toEqual([7, 8, 9]);
     expect((await current.files.get("game"))?.jar.size).toBe(jar.size);
     await current.transaction("rw", current.profiles, async () => {
       expect(Dexie.currentTransaction?.idbtrans.durability).toBe("strict");

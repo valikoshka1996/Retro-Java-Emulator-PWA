@@ -13,6 +13,7 @@ import { analyzeJar } from "./importer";
 import { safeUnzip, binaryBlob } from "./archive";
 import { validateConfiguration } from "./config";
 import { validateTouchControls } from "./touch";
+import { installBinaryStorage } from "./binary-storage";
 import type { TouchControlsConfiguration } from "./types";
 export class RetroDB extends Dexie {
   profiles!: EntityTable<Profile, "id">;
@@ -38,6 +39,8 @@ export class RetroDB extends Dexie {
     this.version(3).stores({
       recoverySaves: "id,profileId,gameId,[gameId+savedFrom]",
     });
+    this.version(4).stores({});
+    installBinaryStorage(this);
   }
 }
 export const db = new RetroDB();

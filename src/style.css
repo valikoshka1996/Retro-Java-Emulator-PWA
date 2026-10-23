@@ -1,5 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap");
 :root {
+  color-scheme: dark;
   font-family: Manrope, system-ui, sans-serif;
   color: #eaedf2;
   background: #101216;
@@ -2693,5 +2694,250 @@ body.game-immersive .pwa-notice {
   }
   .is-immersive .touch-controls-caption {
     display: none;
+  }
+}
+
+/* Phones use the full width; navigation sits above the home indicator. */
+@media (max-width: 600px) {
+  .library-page.has-games .hero,
+  .library-page.has-games .page-heading .eyebrow,
+  .library-page.has-games .page-heading p.muted {
+    display: none;
+  }
+  .library-page.has-games .page-heading {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .library-page.has-games .page-heading h1 {
+    font-size: 22px;
+    margin: 0;
+    letter-spacing: -0.8px;
+  }
+  .library-page.has-games .page-heading > .primary {
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+  .library-page.has-games > .drop-zone {
+    flex-direction: row;
+    min-height: 76px;
+    padding: 12px;
+    gap: 12px;
+    text-align: left;
+  }
+  .library-page.has-games > .drop-zone .upload-icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+  .library-page.has-games > .drop-zone small {
+    display: none;
+  }
+  .app-shell > main {
+    margin-left: 0;
+    width: 100%;
+    min-width: 0;
+    padding-bottom: calc(82px + env(safe-area-inset-bottom));
+  }
+  .sidebar {
+    inset: auto 0 0;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    height: calc(64px + env(safe-area-inset-bottom));
+    padding: 4px max(8px, env(safe-area-inset-right))
+      env(safe-area-inset-bottom) max(8px, env(safe-area-inset-left));
+    border-right: 0;
+    border-top: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+    background: #14161bf5;
+  }
+  .sidebar nav,
+  .sidebar-bottom {
+    display: contents;
+  }
+  .sidebar .brand,
+  .sidebar-caption,
+  .sidebar .local-note,
+  .sidebar .profile-switch {
+    display: none;
+  }
+  .sidebar nav button,
+  .sidebar .nav-settings {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    gap: 4px;
+    padding: 5px 2px;
+    margin: 0;
+    min-height: 52px;
+    width: 100%;
+  }
+  .sidebar nav button svg,
+  .sidebar .nav-settings svg {
+    width: 20px;
+    height: 20px;
+  }
+  .topbar {
+    height: 48px;
+    padding: 0 16px;
+  }
+  .content {
+    padding: 20px 16px 0;
+  }
+  .games-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .game-card {
+    min-width: 0;
+  }
+  .game-cover {
+    height: 118px;
+    gap: 8px;
+  }
+  .game-cover > img {
+    width: 40px;
+    height: 40px;
+  }
+  .cover-title {
+    font-size: 15px;
+    line-height: 1.15;
+  }
+  .game-info {
+    padding: 12px;
+  }
+  .game-title {
+    font-size: 13px;
+  }
+  .game-info > small {
+    font-size: 9px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .game-card-bottom {
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: 9px;
+  }
+  .small-play {
+    min-height: 40px;
+    justify-content: center;
+    flex: 1;
+    font-size: 11px;
+  }
+  .favorite {
+    width: 36px;
+    height: 36px;
+    right: 6px;
+    top: 6px;
+  }
+  .cover-tag {
+    font-size: 6px;
+    bottom: 7px;
+    left: 10px;
+  }
+  .details-heading h1 {
+    overflow-wrap: anywhere;
+  }
+  .details-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .details-tabs button {
+    font-size: 10px;
+    min-height: 44px;
+    white-space: normal;
+  }
+  .panel {
+    padding: 18px;
+    min-width: 0;
+  }
+  .player-heading {
+    gap: 10px;
+  }
+  .player-heading h2 {
+    font-size: 20px;
+    overflow-wrap: anywhere;
+  }
+  .player-toolbar {
+    gap: 7px;
+  }
+  .player-toolbar .secondary {
+    min-height: 44px;
+    font-size: 11px;
+    padding: 9px 11px;
+  }
+  .player-stage {
+    min-height: 320px;
+    padding: 10px;
+  }
+  .emulator-host {
+    height: min(55dvh, 480px);
+  }
+  .error-toast,
+  .pwa-notice {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    max-width: calc(100vw - 24px);
+  }
+  dialog {
+    width: calc(100vw - 20px);
+    max-height: calc(
+      100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px
+    );
+    padding: 16px;
+    overscroll-behavior: contain;
+  }
+  .modal-head {
+    position: sticky;
+    top: -16px;
+    z-index: 4;
+    background: #1a1e26;
+    margin: -16px -16px 16px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .modal-head h2 {
+    font-size: 18px;
+  }
+  .modal-head .icon-button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .touch-presets {
+    margin: 12px 0 20px;
+    gap: 5px;
+  }
+  .touch-editor-fields {
+    gap: 14px;
+  }
+  .touch-editor-fields select {
+    min-height: 44px;
+  }
+  .touch-editor .button-row {
+    position: sticky;
+    bottom: -16px;
+    z-index: 3;
+    background: #1a1e26;
+    margin: 12px -16px -16px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--line);
+  }
+  .touch-editor .button-row .primary {
+    flex: 1;
+    min-width: 0;
+    white-space: normal;
+  }
+  .touch-editor .danger {
+    overflow-wrap: anywhere;
   }
 }

@@ -12,7 +12,8 @@
     "test": "vitest run",
     "engine:prepare": "node scripts/prepare-engine.mjs",
     "fixtures:build": "node scripts/build-java.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:webkit": "playwright test --config playwright.webkit.config.ts"
   },
   "dependencies": {
     "dexie": "^4.2.0",

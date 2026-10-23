@@ -336,6 +336,7 @@ export function App() {
           </button>
           <button
             className="profile-switch"
+            aria-label={"Профіль " + profile.name}
             disabled={playing}
             onClick={() => {
               setPage("profiles");
@@ -419,7 +420,11 @@ export function App() {
             </div>
           </div>
         ) : (
-          <div className="content">
+          <div
+            className={
+              "content library-page" + (games.length ? " has-games" : "")
+            }
+          >
             <div className="page-heading">
               <div>
                 <p className="eyebrow">СТАРІ ІГРИ. НОВІ ПРИГОДИ.</p>
