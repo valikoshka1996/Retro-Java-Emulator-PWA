@@ -1,4 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import Dexie from "dexie";
 import { readFile } from "node:fs/promises";
 import { zipSync, strToU8 } from "fflate";
 import {
@@ -18,6 +19,7 @@ import {
   exportProfile,
   importProfile,
   saveTouchControls,
+  restoreRecoverySave,
 } from "../src/db";
 import {
   defaultTouchControls,
@@ -25,6 +27,11 @@ import {
   validateTouchControls,
 } from "../src/touch";
 import { validateConfiguration } from "../src/config";
+import {
+  refreshStorageHealth,
+  requestDurableStorage,
+  useStorageHealth,
+} from "../src/storage";
 const databases: RetroDB[] = [];
 function database() {
   const d = new RetroDB("test-" + crypto.randomUUID());
@@ -32,6 +39,8 @@ function database() {
   return d;
 }
 afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   for (const d of databases.splice(0)) await d.delete();
 });
 async function fixture() {
@@ -108,6 +117,108 @@ describe("JAR та аналіз сумісності", () => {
   });
 });
 describe("Профілі, IndexedDB та резервні копії", () => {
+  it("зберігає дві попередні різні RMS, відновлює й відхиляє чужий профіль", async () => {
+    const d = database(),
+      p = await createProfile("A", "👾", d),
+      g = await installGame(p.id, await fixture(), "x.jar", undefined, d);
+    for (const text of ["A", "B", "C", "D"])
+      await putSave(p.id, g.id, rms(text), d);
+    let history = await d.recoverySaves
+      .where({ gameId: g.id })
+      .sortBy("savedFrom");
+    const value = async (data: Blob) =>
+      new TextDecoder().decode(
+        safeUnzip(new Uint8Array(await data.arrayBuffer()))["rms/probe"],
+      );
+    expect(await Promise.all(history.map((s) => value(s.data)))).toEqual([
+      "B",
+      "C",
+    ]);
+    await putSave(
+      p.id,
+      g.id,
+      binaryBlob(
+        zipSync({ "rms/probe": strToU8("D") }, { mtime: new Date(2020, 0, 1) }),
+      ),
+      d,
+    );
+    expect(await d.recoverySaves.count()).toBe(2);
+    await expect(
+      restoreRecoverySave("other", history[0].id, d),
+    ).rejects.toThrow();
+    await restoreRecoverySave(p.id, history[0].id, d);
+    expect(await value((await d.saves.get(g.id))!.data)).toBe("B");
+    expect(await d.recoverySaves.count()).toBe(2);
+    await removeGame(p.id, g.id, true, d);
+    expect(await d.recoverySaves.count()).toBe(0);
+  });
+  it("нестача місця відкочує і RMS, і ротацію автокопій", async () => {
+    const d = database(),
+      p = await createProfile("A", "👾", d),
+      g = await installGame(p.id, await fixture(), "x.jar", undefined, d);
+    for (const text of ["A", "B", "C"]) await putSave(p.id, g.id, rms(text), d);
+    const before = await d.recoverySaves.toArray(),
+      save = (await d.saves.get(g.id))!;
+    vi.spyOn(d.saves, "put").mockImplementationOnce(() => {
+      throw new DOMException("Full", "QuotaExceededError");
+    });
+    await expect(putSave(p.id, g.id, rms("D"), d)).rejects.toThrow(
+      "недостатньо місця",
+    );
+    expect(await d.recoverySaves.toArray()).toEqual(before);
+    expect((await d.saves.get(g.id))?.contentHash).toBe(save.contentHash);
+    await expect(putSave(p.id, g.id, new Blob(["bad"]), d)).rejects.toThrow();
+    expect((await d.saves.get(g.id))?.contentHash).toBe(save.contentHash);
+  });
+  it("оновлює наявну базу v2 без втрати профілю, гри та RMS", async () => {
+    const name = "migration-" + crypto.randomUUID(),
+      old = new Dexie(name);
+    old.version(1).stores({
+      profiles: "id,createdAt",
+      games: "id,profileId,[profileId+hash],lastPlayed",
+      files: "id",
+      saves: "id,profileId,gameId",
+      slots: "id,profileId,gameId",
+      sessions: "id,profileId,gameId,startedAt",
+    });
+    old
+      .version(2)
+      .stores({ games: "id,profileId,[profileId+hash],lastPlayed,importedAt" });
+    await old
+      .table("profiles")
+      .put({ id: "old", name: "Existing", avatar: "👾", createdAt: 1 });
+    const jar = await fixture(),
+      analyzed = await analyzeJar(jar, "old.jar");
+    await old
+      .table("games")
+      .put({
+        ...analyzed,
+        id: "game",
+        profileId: "old",
+        favorite: true,
+        importedAt: 1,
+      });
+    await old.table("files").put({ id: "game", jar, filename: "old.jar" });
+    await old.table("saves").put({
+      id: "game",
+      gameId: "game",
+      profileId: "old",
+      data: rms("old"),
+      updatedAt: 1,
+      format: 1,
+    });
+    old.close();
+    const current = new RetroDB(name);
+    databases.push(current);
+    expect((await current.profiles.get("old"))?.name).toBe("Existing");
+    expect((await current.saves.get("game"))?.updatedAt).toBe(1);
+    expect((await current.games.get("game"))?.favorite).toBe(true);
+    expect((await current.files.get("game"))?.jar.size).toBe(jar.size);
+    await current.transaction("rw", current.profiles, async () => {
+      expect(Dexie.currentTransaction?.idbtrans.durability).toBe("strict");
+    });
+    expect(await current.recoverySaves.count()).toBe(0);
+  });
   it("старі конфігурації працюють без touchControls; некоректні розміри відхиляються", async () => {
     const a = await analyzeJar(await fixture(), "x.jar");
     delete a.configuration.touchControls;
@@ -307,5 +418,51 @@ describe("Профілі, IndexedDB та резервні копії", () => {
       ),
     ).rejects.toThrow("формат");
     expect(await d.profiles.count()).toBe(0);
+  });
+});
+
+describe("постійне сховище", () => {
+  it("показує підтверджений дозвіл і квоту", async () => {
+    let allowed = false;
+    const persist = vi.fn(async () => {
+      allowed = true;
+      return true;
+    });
+    vi.stubGlobal("navigator", {
+      storage: {
+        persisted: async () => allowed,
+        persist,
+        estimate: async () => ({ usage: 100, quota: 1000 }),
+      },
+    });
+    await refreshStorageHealth();
+    expect(useStorageHealth.getState().persistence).toBe("best-effort");
+    await requestDurableStorage();
+    expect(useStorageHealth.getState()).toMatchObject({
+      persistence: "persistent",
+      usage: 100,
+      quota: 1000,
+    });
+    await requestDurableStorage();
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+  it("відмова, відсутній API і помилка не стають фальшивим дозволом", async () => {
+    vi.stubGlobal("navigator", {
+      storage: { persisted: async () => false, persist: async () => false },
+    });
+    await requestDurableStorage();
+    expect(useStorageHealth.getState().persistence).toBe("best-effort");
+    vi.stubGlobal("navigator", {});
+    await requestDurableStorage();
+    expect(useStorageHealth.getState().persistence).toBe("unsupported");
+    vi.stubGlobal("navigator", {
+      storage: {
+        persisted: async () => {
+          throw Error("Denied");
+        },
+      },
+    });
+    await requestDurableStorage();
+    expect(useStorageHealth.getState().persistence).toBe("unavailable");
   });
 });

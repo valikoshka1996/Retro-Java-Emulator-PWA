@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
+import { zipSync, strToU8, unzipSync, strFromU8 } from "fflate";
 
 async function shellReady(page: import("@playwright/test").Page) {
   await page.goto("/");
@@ -15,6 +16,106 @@ async function shellReady(page: import("@playwright/test").Page) {
     );
   });
 }
+
+test("повне закриття браузера → офлайн: профіль, RMS, автокопії й зовнішній ZIP", async ({}, info) => {
+  const { chromium } = await import("@playwright/test");
+  const userData = info.outputPath("offline-profile");
+  let context = await chromium.launchPersistentContext(userData, {
+    baseURL: "http://127.0.0.1:4173",
+    headless: true,
+  });
+  try {
+    let page = await context.newPage();
+    await shellReady(page);
+    await page.getByLabel("Як вас називати?").fill("Offline durable profile");
+    await page.getByRole("button", { name: "Створити профіль" }).click();
+    await page.getByRole("button", { name: "Додати RMS Probe" }).click();
+    await page.getByRole("button", { name: "Збереження", exact: true }).click();
+    for (const text of ["A", "B", "C"]) {
+      const data = zipSync({ "rms/probe": strToU8(text) });
+      await page.locator(".save-manager input[type=file]").setInputFiles({
+        name: text + ".zip",
+        mimeType: "application/zip",
+        buffer: Buffer.from(data),
+      });
+      await expect(
+        page.getByText(
+          "Автоматичні попередні копії (" +
+            ["A", "B", "C"].indexOf(text) +
+            "/2)",
+        ),
+      ).toBeVisible();
+    }
+    await context.close();
+    context = await chromium.launchPersistentContext(userData, {
+      baseURL: "http://127.0.0.1:4173",
+      headless: true,
+    });
+    await context.setOffline(true);
+    page = await context.newPage();
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { name: "Ваша бібліотека" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Відкрити RMS Probe" }).click();
+    await page.getByRole("button", { name: "Збереження", exact: true }).click();
+    await page.getByText("Автоматичні попередні копії (2/2)").click();
+    await page
+      .getByRole("button", { name: "Відновити автокопію", exact: true })
+      .first()
+      .click();
+    const rmsDownload = page.waitForEvent("download");
+    await page
+      .getByRole("button", { name: "Експорт RMS", exact: true })
+      .click();
+    const rmsFile = await rmsDownload;
+    await rmsFile.saveAs(info.outputPath("restored.zip"));
+    expect(
+      strFromU8(
+        unzipSync(
+          new Uint8Array(await readFile(info.outputPath("restored.zip"))),
+        )["rms/probe"],
+      ),
+    ).toBe("B");
+    await page
+      .locator(".sidebar")
+      .getByRole("button", { name: "Налаштування", exact: true })
+      .click();
+    const archiveDownload = page.waitForEvent("download");
+    await page
+      .getByRole("button", { name: "Експорт профілю", exact: true })
+      .click();
+    const file = await archiveDownload;
+    await file.saveAs(info.outputPath("profile.zip"));
+    const entries = unzipSync(
+      new Uint8Array(await readFile(info.outputPath("profile.zip"))),
+    );
+    const manifest = JSON.parse(strFromU8(entries["profile.json"]));
+    expect(manifest.profile.name).toBe("Offline durable profile");
+    expect(
+      strFromU8(
+        unzipSync(entries[`saves/${manifest.games[0].hash}.zip`])["rms/probe"],
+      ),
+    ).toBe("B");
+    await page.getByRole("button", { name: "Закрити", exact: true }).click();
+    await page
+      .getByRole("button", { name: "До бібліотеки", exact: true })
+      .click();
+    await page
+      .locator(".sidebar")
+      .getByRole("button", { name: "Налаштування", exact: true })
+      .click();
+    await page
+      .locator('input[type=file][accept=".zip"]')
+      .setInputFiles(info.outputPath("profile.zip"));
+    await page.getByRole("button", { name: "Закрити", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Відкрити RMS Probe" }),
+    ).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});
 test("manifest, PNG-іконки, кеш оболонки та офлайн-бібліотека", async ({
   page,
   context,

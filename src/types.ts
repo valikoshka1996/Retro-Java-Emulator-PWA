@@ -97,6 +97,10 @@ export interface GameSave {
   data: Blob;
   updatedAt: number;
   format: 1;
+  contentHash?: string;
+}
+export interface RecoverySave extends GameSave {
+  savedFrom: number;
 }
 export interface SaveSlot {
   id: string;

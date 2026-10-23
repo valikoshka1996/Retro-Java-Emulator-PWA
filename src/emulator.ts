@@ -20,6 +20,10 @@ export interface EmulatorAdapter {
   importSaveData(data: Blob): Promise<void>;
   captureScreenshot(): Promise<Blob>;
 }
+export interface SaveFeedback {
+  state: "pending" | "saved" | "failed";
+  confirmedAt?: number;
+}
 export class FreeJ2MEAdapter implements EmulatorAdapter {
   private game?: Game;
   private frame?: HTMLIFrameElement;
@@ -45,6 +49,7 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
     private onStatus: (status: string) => void,
     private onError: (e: string) => void,
     private onExit: () => void,
+    private onSave?: (feedback: SaveFeedback) => void,
   ) {}
   getCapabilities(): EmulatorCapabilities {
     return {
@@ -83,9 +88,18 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
   }
   private persist(data: ArrayBuffer) {
     const game = this.game!;
+    this.onSave?.({ state: "pending" });
     this.saveQueue = this.saveQueue
       .catch(() => {})
-      .then(() => putSave(game.profileId, game.id, new Blob([data])));
+      .then(async () => {
+        try {
+          await putSave(game.profileId, game.id, new Blob([data]));
+          this.onSave?.({ state: "saved", confirmedAt: Date.now() });
+        } catch (error) {
+          this.onSave?.({ state: "failed" });
+          throw error;
+        }
+      });
     return this.saveQueue;
   }
   private message = async (e: MessageEvent) => {
@@ -128,6 +142,7 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
         this.readyResolve?.();
       }
       if (kind === "error") {
+        this.onSave?.({ state: "failed" });
         this.readyReject?.(Error(payload));
         this.onError(payload);
       }

@@ -100,7 +100,9 @@ test("реальний MIDlet: RMS → стоп → закрити браузе�
     if (/PROBE_|Exception|Error/.test(m.text())) console.log(m.text());
   });
   await page.goto("/");
-  await page.getByRole("button", { name: /RMS Tester/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Ваша бібліотека" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Відкрити RMS Probe" }).click();
   await page.getByRole("button", { name: "Грати", exact: true }).click();
   await expect
@@ -113,6 +115,41 @@ test("реальний MIDlet: RMS → стоп → закрити браузе�
     path: testInfo.outputPath("rms-restored.png"),
     fullPage: true,
   });
+  await expect(page.locator(".rms-feedback")).toContainText("RMS ✓", {
+    timeout: 15000,
+  });
+  const confirmed = await page.locator(".rms-feedback").innerText();
+  await page.getByRole("button", { name: "OK", exact: true }).click();
+  await expect
+    .poll(() => logs.some((s) => s.includes("PROBE_SAVED:2")), {
+      timeout: 15000,
+    })
+    .toBe(true);
+  await expect
+    .poll(() => page.locator(".rms-feedback").innerText(), { timeout: 15000 })
+    .not.toBe(confirmed);
+  await expect(page.locator(".rms-feedback")).toContainText("RMS ✓");
+  // Close without Stop, after the application has confirmed the periodic copy.
+  await context.close();
+  context = await chromium.launchPersistentContext(userData, {
+    baseURL: "http://127.0.0.1:5173",
+    headless: true,
+  });
+  page = await context.newPage();
+  logs.length = 0;
+  page.on("console", (m) => {
+    logs.push(m.text());
+    if (/PROBE_/.test(m.text())) console.log(m.text());
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Відкрити RMS Probe" }).click();
+  await page.getByRole("button", { name: "Грати", exact: true }).click();
+  await expect
+    .poll(() => logs.some((s) => s.includes("PROBE_READ:2")), {
+      timeout: 90000,
+      intervals: [1000],
+    })
+    .toBe(true);
   await page.getByRole("button", { name: "Стоп", exact: true }).click();
   await expect(page.getByText("Гру зупинено", { exact: true })).toBeVisible({
     timeout: 60000,

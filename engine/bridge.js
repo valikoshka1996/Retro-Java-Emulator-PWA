@@ -69,6 +69,17 @@ function release() {
   for (const [source, action] of [...held]) key(action, false, source);
 }
 let snapshots = Promise.resolve();
+let checkpointPending = false;
+function checkpoint() {
+  if (!ready || checkpointPending) return;
+  checkpointPending = true;
+  snapshot()
+    .then((data) => emit("rms", data))
+    .catch((e) => emit("error", String(e)))
+    .finally(() => {
+      checkpointPending = false;
+    });
+}
 function snapshot() {
   const result = snapshots.then(async () => {
     const bytes = await helper.exportRms(bridge.appId);
@@ -89,8 +100,12 @@ export const bridge = {
     queue = q;
     window.addEventListener("blur", release);
     document.addEventListener("visibilitychange", () => {
-      if (document.hidden) release();
+      if (document.hidden) {
+        release();
+        checkpoint();
+      }
     });
+    window.addEventListener("pagehide", checkpoint);
   },
   keyboard(e) {
     e.preventDefault();
@@ -137,12 +152,7 @@ export const bridge = {
     if (ready) return;
     ready = true;
     emit("ready");
-    setInterval(() => {
-      if (ready)
-        snapshot()
-          .then((data) => emit("rms", data))
-          .catch((e) => emit("error", String(e)));
-    }, 3000);
+    setInterval(checkpoint, 3000);
   },
   error(e) {
     let message = "Помилка Java runtime. Перевірте консоль браузера.";

@@ -2309,6 +2309,35 @@ dd {
 }
 
 /* A single, resizable phone keypad; navigation always stays above the digits. */
+.rms-feedback {
+  position: absolute;
+  top: 7px;
+  left: 8px;
+  z-index: 2;
+  pointer-events: none;
+  color: #a5b9c9;
+  background: #0b0e12d9;
+  border-radius: 5px;
+  padding: 4px 6px;
+  font-size: 9px;
+}
+.rms-feedback.rms-saved {
+  color: #7af4c7;
+}
+.rms-feedback.rms-failed {
+  color: #ff9ba9;
+}
+.recovery-saves {
+  margin-top: 22px;
+}
+.recovery-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 11px;
+}
 .touch-controls {
   align-self: center;
   min-width: 0;

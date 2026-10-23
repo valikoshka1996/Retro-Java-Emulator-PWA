@@ -39,9 +39,10 @@ import {
   createSlot,
   restoreSlot,
   putSave,
+  restoreRecoverySave,
 } from "../db";
 import { useApp } from "../store";
-import { FreeJ2MEAdapter, download } from "../emulator";
+import { FreeJ2MEAdapter, download, type SaveFeedback } from "../emulator";
 import {
   actions,
   labels,
@@ -54,6 +55,7 @@ import { PhoneKeypad, TouchControlsEditor } from "./PhoneKeypad";
 import { normalizeTouchControls } from "../touch";
 import { useGameFullscreen } from "./useGameFullscreen";
 import { PwaSettings } from "../pwa/PwaControls";
+import { requestDurableStorage, useStorageHealth } from "../storage";
 const date = (n?: number) =>
   n ? new Date(n).toLocaleDateString("uk-UA") : "Ще не запускали";
 const avatars = ["👾", "🎮", "🚀", "🦊", "🤖", "💜"];
@@ -767,6 +769,7 @@ function ProfileForm({ onCreate }: { onCreate: (p: Profile) => void }) {
         e.preventDefault();
         setBusy(true);
         try {
+          void requestDurableStorage();
           onCreate(await createProfile(name, avatar));
         } catch (e) {
           useApp.getState().setError(errorText(e));
@@ -848,12 +851,8 @@ function PhoneArt() {
 }
 type Run = (fn: () => Promise<unknown>) => Promise<void>;
 function GlobalSettings({ profile, run }: { profile: Profile; run: Run }) {
-  const [storage, setStorage] = useState<StorageEstimate>(),
-    [persistent, setPersistent] = useState(false);
-  useEffect(() => {
-    navigator.storage?.estimate().then(setStorage);
-    navigator.storage?.persisted().then(setPersistent);
-  }, []);
+  const storage = useStorageHealth(),
+    persistent = storage.persistence === "persistent";
   return (
     <div className="settings-stack">
       <PwaSettings />
@@ -900,26 +899,40 @@ function GlobalSettings({ profile, run }: { profile: Profile; run: Run }) {
         <h3>Сховище браузера</h3>
         <p className="muted">
           Використано {Math.round((storage?.usage || 0) / 1024 / 1024)} МБ. Дані
-          можуть зникнути після очищення браузера. Регулярно робіть експорт.
+          залишаються на цьому пристрої без інтернету. Постійне сховище:
+          {persistent
+            ? " дозволено браузером."
+            : storage.persistence === "checking"
+              ? " перевіряємо…"
+              : " не підтверджено."}
+          {storage.quota !== undefined && (
+            <>
+              {" "}
+              Орієнтовна квота: {Math.round(storage.quota / 1024 / 1024)} МБ.
+            </>
+          )}
         </p>
         <button
           className="secondary"
-          onClick={() =>
-            void run(async () => {
-              const ok = await navigator.storage.persist();
-              setPersistent(ok);
-              if (!ok)
-                throw Error(
-                  "Браузер не надав постійне сховище. Використовуйте експорт профілю.",
-                );
-            })
-          }
+          disabled={persistent || storage.persistence === "unsupported"}
+          onClick={() => void requestDurableStorage()}
         >
           {persistent ? <Check size={16} /> : <HardDrive size={16} />}{" "}
           {persistent
             ? "Постійне сховище дозволено"
             : "Запросити постійне сховище"}
         </button>
+        {storage.message && (
+          <p className="hint" role="status">
+            {storage.message}
+          </p>
+        )}
+        <p className="hint">
+          Окремий ZIP у «Файлах» захищає від очищення даних застосунку.
+          Натисніть «Експорт профілю» вище та збережіть файл поза браузером. На
+          iPhone використовуйте встановлену PWA й ту саму адресу сайту.
+          Приватний режим не підходить для постійної бібліотеки.
+        </p>
       </section>
       <section>
         <h3>Рушій і сумісність</h3>
@@ -1406,6 +1419,14 @@ function SaveManager({
   screenshot?: Blob;
 }) {
   const saves = useLiveQuery(() => db.saves.get(game.id), [game.id]);
+  const recovery =
+    useLiveQuery(
+      () =>
+        db.recoverySaves
+          .where({ gameId: game.id, profileId: game.profileId })
+          .sortBy("savedFrom"),
+      [game.id, game.profileId],
+    ) || [];
   const slots =
     useLiveQuery(
       () =>
@@ -1462,6 +1483,37 @@ function SaveManager({
           />
         </label>
       </div>
+      <details className="recovery-saves">
+        <summary>Автоматичні попередні копії ({recovery.length}/2)</summary>
+        <p className="muted small">
+          Дві попередні різні версії RMS зберігаються на цьому пристрої. Це
+          відновлення після невдалого запису або небажаного прогресу; для
+          захисту від очищення браузера потрібен окремий експорт. Архів профілю
+          містить поточне RMS і ручні слоти.
+        </p>
+        {[...recovery].reverse().map((save) => (
+          <div key={save.id} className="recovery-row">
+            <span>{new Date(save.savedFrom).toLocaleString("uk-UA")}</span>
+            <button
+              className="secondary"
+              disabled={running}
+              onClick={() =>
+                void run(() => restoreRecoverySave(game.profileId, save.id))
+              }
+            >
+              Відновити автокопію
+            </button>
+            <button
+              className="secondary"
+              onClick={() =>
+                download(save.data, game.metadata.name + "-recovery.zip")
+              }
+            >
+              Експорт автокопії
+            </button>
+          </div>
+        ))}
+      </details>
       <div className="slot-create">
         <input
           aria-label="Назва резервної копії"
@@ -1582,6 +1634,9 @@ function Player({
     normalizeTouchControls(game.configuration.touchControls),
   );
   const [showControls, setShowControls] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<SaveFeedback>({
+    state: "pending",
+  });
   const [status, setStatus] = useState("Підготовка…"),
     [running, setRunning] = useState(false),
     [working, setWorking] = useState(true),
@@ -1596,6 +1651,7 @@ function Player({
           setRunning(false);
           setWorking(false);
         },
+        setSaveFeedback,
       ),
   );
   const launch = async () => {
@@ -1810,6 +1866,21 @@ function Player({
       </div>
       <div className="player-layout">
         <div className="player-stage">
+          {running && (
+            <span
+              className={"rms-feedback rms-" + saveFeedback.state}
+              role="status"
+            >
+              {saveFeedback.state === "saved"
+                ? "RMS ✓ " +
+                  new Date(saveFeedback.confirmedAt!).toLocaleTimeString(
+                    "uk-UA",
+                  )
+                : saveFeedback.state === "failed"
+                  ? "RMS: запис не підтверджено"
+                  : "RMS: очікуємо запису…"}
+            </span>
+          )}
           <div
             ref={host}
             className="emulator-host"

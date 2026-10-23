@@ -4,7 +4,9 @@ import { App } from "./ui/App";
 import "./style.css";
 import { startPwa } from "./pwa/client";
 import { PwaControls } from "./pwa/PwaControls";
+import { startStorageHealth } from "./storage";
 startPwa();
+startStorageHealth();
 createRoot(document.getElementById("root")!).render(
   <>
     <App />

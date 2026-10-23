@@ -7,6 +7,7 @@ import type {
   GameSave,
   SaveSlot,
   PlaySession,
+  RecoverySave,
 } from "./types";
 import { analyzeJar } from "./importer";
 import { safeUnzip, binaryBlob } from "./archive";
@@ -20,8 +21,9 @@ export class RetroDB extends Dexie {
   saves!: EntityTable<GameSave, "id">;
   slots!: EntityTable<SaveSlot, "id">;
   sessions!: EntityTable<PlaySession, "id">;
+  recoverySaves!: EntityTable<RecoverySave, "id">;
   constructor(name = "java-retro-v1") {
-    super(name);
+    super(name, { chromeTransactionDurability: "strict" });
     this.version(1).stores({
       profiles: "id,createdAt",
       games: "id,profileId,[profileId+hash],lastPlayed",
@@ -32,6 +34,9 @@ export class RetroDB extends Dexie {
     });
     this.version(2).stores({
       games: "id,profileId,[profileId+hash],lastPlayed,importedAt",
+    });
+    this.version(3).stores({
+      recoverySaves: "id,profileId,gameId,[gameId+savedFrom]",
     });
   }
 }
@@ -113,6 +118,7 @@ export async function removeGame(
       database.saves,
       database.slots,
       database.sessions,
+      database.recoverySaves,
     ],
     async () => {
       await database.games.delete(gameId);
@@ -120,6 +126,7 @@ export async function removeGame(
       if (removeSaves) {
         await database.saves.delete(gameId);
         await database.slots.where({ profileId, gameId }).delete();
+        await database.recoverySaves.where({ profileId, gameId }).delete();
       }
       await database.sessions.where({ profileId, gameId }).delete();
     },
@@ -145,15 +152,87 @@ export async function putSave(
   const game = await database.games.get(gameId);
   if (!game || game.profileId !== profileId)
     throw Error("Чужий профіль збереження.");
-  validateRms(new Uint8Array(await data.arrayBuffer()));
-  await database.saves.put({
-    id: gameId,
-    profileId,
-    gameId,
-    data,
-    updatedAt: Date.now(),
-    format: 1,
-  });
+  const entries = validateRms(new Uint8Array(await data.arrayBuffer()));
+  // ZIP timestamps change every snapshot. Compare actual RMS contents instead.
+  const signature = await Promise.all(
+    Object.keys(entries)
+      .sort()
+      .map(async (name) => [
+        name,
+        Array.from(
+          new Uint8Array(
+            await crypto.subtle.digest(
+              "SHA-256",
+              new Uint8Array(entries[name]).buffer,
+            ),
+          ),
+          (n) => n.toString(16).padStart(2, "0"),
+        ).join(""),
+      ]),
+  );
+  const contentHash = Array.from(
+    new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(JSON.stringify(signature)),
+      ),
+    ),
+    (n) => n.toString(16).padStart(2, "0"),
+  ).join("");
+  try {
+    return await database.transaction(
+      "rw",
+      database.games,
+      database.saves,
+      database.recoverySaves,
+      async () => {
+        const currentGame = await database.games.get(gameId);
+        if (!currentGame || currentGame.profileId !== profileId)
+          throw Error("Чужий профіль збереження.");
+        const previous = await database.saves.get(gameId);
+        if (previous?.contentHash === contentHash) return previous.updatedAt;
+        const updatedAt = Math.max(Date.now(), (previous?.updatedAt || 0) + 1);
+        if (previous)
+          await database.recoverySaves.put({
+            ...previous,
+            id: crypto.randomUUID(),
+            savedFrom: previous.updatedAt,
+          });
+        const older = await database.recoverySaves
+          .where({ gameId })
+          .sortBy("savedFrom");
+        await database.recoverySaves.bulkDelete(
+          older.slice(0, Math.max(0, older.length - 2)).map((s) => s.id),
+        );
+        await database.saves.put({
+          id: gameId,
+          profileId,
+          gameId,
+          data,
+          updatedAt,
+          format: 1,
+          contentHash,
+        });
+        return updatedAt;
+      },
+    );
+  } catch (e) {
+    if (e instanceof Error && /quota/i.test(e.name))
+      throw Error(
+        "Не вдалося записати RMS: недостатньо місця на пристрої. Раніше підтверджені дані не змінено. Експортуйте профіль і звільніть місце.",
+      );
+    throw e;
+  }
+}
+export async function restoreRecoverySave(
+  profileId: string,
+  recoveryId: string,
+  database = db,
+) {
+  const save = await database.recoverySaves.get(recoveryId);
+  if (!save || save.profileId !== profileId)
+    throw Error("Автокопію не знайдено у профілі.");
+  await putSave(profileId, save.gameId, save.data, database);
 }
 export async function createSlot(
   profileId: string,
@@ -197,15 +276,33 @@ export async function restoreSlot(
   await putSave(profileId, slot.gameId, slot.data, database);
 }
 export async function exportProfile(profileId: string, database = db) {
-  const profile = await database.profiles.get(profileId);
+  // Read a consistent snapshot before Blob/ZIP work, which cannot keep an IDB
+  // transaction alive. A concurrent import/delete must not produce a mixed ZIP.
+  const { profile, games, files, saves, slots, sessions } =
+    await database.transaction(
+      "r",
+      [
+        database.profiles,
+        database.games,
+        database.files,
+        database.saves,
+        database.slots,
+        database.sessions,
+      ],
+      async () => {
+        const profile = await database.profiles.get(profileId),
+          games = await database.games.where({ profileId }).toArray(),
+          files = await database.files.bulkGet(games.map((g) => g.id)),
+          saves = await database.saves.where({ profileId }).toArray(),
+          slots = await database.slots.where({ profileId }).toArray(),
+          sessions = await database.sessions.where({ profileId }).toArray();
+        return { profile, games, files, saves, slots, sessions };
+      },
+    );
   if (!profile) throw Error("Профіль не знайдено.");
-  const games = await database.games.where({ profileId }).toArray(),
-    saves = await database.saves.where({ profileId }).toArray(),
-    slots = await database.slots.where({ profileId }).toArray(),
-    sessions = await database.sessions.where({ profileId }).toArray();
   const archive: Record<string, Uint8Array> = {};
-  for (const g of games) {
-    const f = await database.files.get(g.id);
+  for (const [index, g] of games.entries()) {
+    const f = files[index];
     if (!f) throw Error("Відсутній JAR.");
     archive[`games/${g.hash}.jar`] = new Uint8Array(await f.jar.arrayBuffer());
     if (f.jad)
