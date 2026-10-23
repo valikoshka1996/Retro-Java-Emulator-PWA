@@ -128,10 +128,33 @@ test("реальний MIDlet: RMS → стоп → закрити браузе�
     page.getByRole("heading", { name: "Before restart" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Закрити", exact: true }).click();
+  await page
+    .getByRole("button", { name: "На весь екран", exact: true })
+    .click();
   await page.getByRole("button", { name: "Стоп", exact: true }).click();
   await expect(page.getByText("Гру зупинено", { exact: true })).toBeVisible({
     timeout: 60000,
   });
+  await page.getByRole("button", { name: "Вийти", exact: true }).click();
+  await page.waitForTimeout(3200);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  // Restart in the same tab as well as restoring after a browser restart below.
+  logs.length = 0;
+  await page.getByRole("button", { name: "Грати", exact: true }).click();
+  await expect
+    .poll(() => logs.some((s) => s.includes("PROBE_READ:1")), {
+      timeout: 90000,
+    })
+    .toBe(true);
+  await page
+    .getByRole("button", { name: "На весь екран", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Стоп", exact: true }).click();
+  await expect(page.getByText("Гру зупинено", { exact: true })).toBeVisible({
+    timeout: 60000,
+  });
+  await page.getByRole("button", { name: "Вийти", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await page.screenshot({
     path: testInfo.outputPath("player-stopped.png"),
     fullPage: true,

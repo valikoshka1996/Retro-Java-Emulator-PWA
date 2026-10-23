@@ -73,7 +73,16 @@ function release() {
   releasePointer();
   for (const [source, action] of [...held]) key(action, false, source);
 }
-let snapshots = Promise.resolve();
+// Library-mode calls on the same CheerpJ helper must never overlap.
+// Stop participates in the same queue as periodic/manual RMS exports.
+let operations = Promise.resolve();
+let stopTask;
+let checkpointTimer;
+function serialize(task) {
+  const result = operations.then(task);
+  operations = result.catch(() => {});
+  return result;
+}
 let checkpointPending = false;
 function checkpoint() {
   if (!ready || checkpointPending) return;
@@ -86,12 +95,27 @@ function checkpoint() {
     });
 }
 function snapshot() {
-  const result = snapshots.then(async () => {
-    const bytes = await helper.exportRms(bridge.appId);
-    return new Uint8Array(bytes).buffer;
+  return serialize(readRms);
+}
+async function readRms() {
+  const bytes = await helper.exportRms(bridge.appId);
+  return new Uint8Array(bytes).buffer;
+}
+function stop() {
+  if (stopTask) return stopTask;
+  release();
+  stopping = true;
+  ready = false;
+  clearInterval(checkpointTimer);
+  stopTask = serialize(async () => {
+    await helper.destroy();
+    // Capture destroyApp's final writes before acknowledging Stop.
+    return readRms();
+  }).catch((error) => {
+    stopTask = undefined;
+    throw error;
   });
-  snapshots = result.catch(() => {});
-  return result;
+  return stopTask;
 }
 export const bridge = {
   appId: "",
@@ -168,7 +192,7 @@ export const bridge = {
     if (ready) return;
     ready = true;
     emit("ready");
-    setInterval(checkpoint, 3000);
+    checkpointTimer = setInterval(checkpoint, 3000);
   },
   error(e) {
     let message = "Помилка Java runtime. Перевірте консоль браузера.";
@@ -184,7 +208,9 @@ export const bridge = {
   async exit() {
     if (stopping) return;
     release();
+    stopping = true;
     ready = false;
+    clearInterval(checkpointTimer);
     try {
       emit("rms", await snapshot());
       emit("exited");
@@ -232,11 +258,7 @@ window.addEventListener("message", async (e) => {
     } else if (method === "snapshot") {
       result = await snapshot();
     } else if (method === "stop") {
-      release();
-      stopping = true;
-      ready = false;
-      await helper.destroy();
-      result = await snapshot();
+      result = await stop();
     } else if (method === "screenshot") {
       let image = display;
       const rotation = config?.displayRotation || 0;
