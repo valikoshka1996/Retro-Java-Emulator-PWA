@@ -31,6 +31,6 @@ PWA і звичайна вкладка використовують IndexedDB с
 
 Фактичний інсталяційний діалог Chrome/Edge, запуск зі значка Windows/Android/iOS та фізичний iPhone перевіряються вручну. Після `npm run pwa` встановіть через меню браузера, закрийте вкладку, відкрийте зі значка й перевірте профіль, гру та RMS. Потім вимкніть мережу й перевірте доступність бібліотеки. Під час переходу на новий production build перевірте «Оновити» після «Стоп».
 
-Результат поточного прогону: **4/4 пройдено** (14,7 с); `Page.getInstallabilityErrors` у Chromium повернув порожній список.
+Після виправлення запуску за reverse proxy набір містить **6 сценаріїв**: додано HTTP 502 та помилку завантаження модуля, а справжній MIDlet також перевіряється з відповідями HTTP 200 на всі JAR-запити, як при видаленні Range зовнішнім proxy. Результат: **6/6 пройдено**; `Page.getInstallabilityErrors` у Chromium повернув порожній список.
 
 Джерела для браузерних вимог: [MDN: installable PWAs](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable), [Service workers](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers), [beforeinstallprompt](https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeinstallprompt_event).

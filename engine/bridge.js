@@ -80,6 +80,10 @@ function snapshot() {
 export const bridge = {
   appId: "",
   integerScale: true,
+  stage(message) {
+    document.getElementById("loading").textContent = message;
+    emit("stage", message);
+  },
   attach(canvas, q) {
     display = canvas;
     queue = q;
@@ -141,9 +145,15 @@ export const bridge = {
     }, 3000);
   },
   error(e) {
+    let message = "Помилка Java runtime. Перевірте консоль браузера.";
+    try {
+      message = typeof e === "string" ? e : String(e?.message || e);
+    } catch {
+      /* Some CheerpJ Java exception proxies cannot be converted to a string. */
+    }
     document.getElementById("loading").hidden = false;
-    document.getElementById("loading").textContent = e;
-    emit("error", e);
+    document.getElementById("loading").textContent = message;
+    emit("error", message);
   },
   async exit() {
     if (stopping) return;

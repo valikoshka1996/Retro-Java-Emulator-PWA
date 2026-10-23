@@ -42,6 +42,36 @@
     </div>
     <div id="left-keys"></div>
     <div id="right-keys"></div>
+    <script>
+      // Report failures even when a module import or the external loader fails
+      // before main.js can register its normal error handler.
+      (() => {
+        const token = new URLSearchParams(location.search).get("token");
+        const fail = (message) => {
+          document.getElementById("loading").textContent = message;
+          parent.postMessage(
+            { retro: true, token, kind: "error", payload: message },
+            location.origin,
+          );
+        };
+        window.addEventListener(
+          "error",
+          (event) => {
+            if (event.target instanceof HTMLScriptElement)
+              fail("Не вдалося завантажити скрипт рушія: " + event.target.src);
+            else if (event.message) fail("Помилка запуску: " + event.message);
+          },
+          true,
+        );
+        window.addEventListener("unhandledrejection", (event) => {
+          let message = "Невідома помилка Java runtime.";
+          try {
+            message = String(event.reason?.message || event.reason);
+          } catch {}
+          fail("Помилка запуску: " + message);
+        });
+      })();
+    </script>
     <script src="https://cjrtnc.leaningtech.com/20260317_2978/loader.js"></script>
     <script type="module" src="src/main.js"></script>
   </body>

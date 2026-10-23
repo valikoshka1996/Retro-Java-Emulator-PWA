@@ -111,6 +111,8 @@ curl -sS -D - -o /dev/null -H 'Range: bytes=0-15' \
 
 Для worker очікується `Cache-Control: no-store, max-age=0`; для JAR — **206 Partial Content**, `Content-Range: bytes 0-15/...` і довжина 16 байтів. Якщо localhost працює, а домен дає 502, перевіряйте Target/SSL тільки цього proxy. Якщо домен дає HTML замість JAR — перевірте rewrite та cache цього proxy.
 
+Java Retro додатково підтримує proxy, який прибирає Range: невеликі бібліотеки рушія завантажуються звичайним GET у read-only `/str/` filesystem CheerpJ. Повернення HTTP 200 із повним коректним JAR більше не блокує запуск. HTTP 502, HTML замість JAR або відсутній модуль показуються як помилка запуску. Це не вимагає редагування глобального nginx.conf чи перезапуску aaPanel.
+
 ## Оновлення і відкат
 
 Кожний push у `main` проходить перевірки перед деплоєм. Образ позначено повним Git SHA. Для кожної спроби створюється окремий `releases/<sha>-<run-id>-<attempt>` із Compose та `release.env`; `current` перемикається тільки після healthcheck і перевірки byte ranges. Заміна контейнера може спричинити коротку перерву в HTTP-відповідях; zero-downtime не заявляється.

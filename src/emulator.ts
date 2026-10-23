@@ -98,6 +98,8 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
       return;
     const { kind, payload } = e.data;
     try {
+      if (kind === "stage" && typeof payload === "string")
+        this.onStatus(payload);
       if (kind === "reply") {
         const p = this.pending.get(payload.id);
         if (p) {
@@ -178,39 +180,43 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
       "sandbox",
       "allow-scripts allow-same-origin allow-pointer-lock",
     );
+    this.onStatus("Завантаження CheerpJ з CDN…");
+    // Install the startup handlers before the iframe can report an early error.
+    const startup = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () =>
+          reject(
+            Error(
+              "Запуск перевищив 180 секунд. Перевірте з’єднання або доступ до CheerpJ CDN.",
+            ),
+          ),
+        180000,
+      );
+      this.readyResolve = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      this.readyReject = (error) => {
+        clearTimeout(timer);
+        reject(error);
+      };
+    });
+    // A fast resource error may arrive while the IndexedDB session is being written.
+    void startup.catch(() => {});
     this.frame.src = "/engine/player.html?token=" + this.token;
     container.replaceChildren(this.frame);
-    this.onStatus("Завантаження CheerpJ з CDN…");
     this.startedAt = Date.now();
     this.sessionId = crypto.randomUUID();
-    await db.sessions.add({
-      id: this.sessionId,
-      profileId: this.game.profileId,
-      gameId: this.game.id,
-      startedAt: this.startedAt,
-      seconds: 0,
-    });
-    await db.games.update(this.game.id, { lastPlayed: this.startedAt });
     try {
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(
-          () =>
-            reject(
-              Error(
-                "CheerpJ не завантажився за 180 с. Перевірте інтернет і повторіть запуск.",
-              ),
-            ),
-          180000,
-        );
-        this.readyResolve = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-        this.readyReject = (e) => {
-          clearTimeout(timer);
-          reject(e);
-        };
+      await db.sessions.add({
+        id: this.sessionId,
+        profileId: this.game.profileId,
+        gameId: this.game.id,
+        startedAt: this.startedAt,
+        seconds: 0,
       });
+      await db.games.update(this.game.id, { lastPlayed: this.startedAt });
+      await startup;
     } catch (e) {
       await this.finish();
       throw e;

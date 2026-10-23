@@ -80,7 +80,7 @@ test("manifest, PNG-іконки, кеш оболонки та офлайн-бі
     ),
   ).toBe(false);
 });
-test("service worker не змінює Range і справжній MIDlet пише RMS", async ({
+test("HTTP 206, proxy без Range та справжній MIDlet з RMS", async ({
   page,
 }) => {
   const logs: string[] = [];
@@ -99,6 +99,17 @@ test("service worker не змінює Range і справжній MIDlet пиш
   expect(range.status).toBe(206);
   expect(range.range).toMatch(/^bytes 0-15\//);
   expect(range.size).toBe(16);
+  const loadedLibraries: string[] = [];
+  // Reproduce aaPanel stripping Range: any JAR request receives the full HTTP 200 body.
+  await page.route("**/engine/*.jar", async (route) => {
+    const headers = { ...route.request().headers() };
+    delete headers.range;
+    delete headers["if-range"];
+    const response = await route.fetch({ headers });
+    expect(response.status()).toBe(200);
+    loadedLibraries.push(new URL(route.request().url()).pathname);
+    await route.fulfill({ response });
+  });
   await page.getByLabel("Як вас називати?").fill("PWA RMS");
   await page.getByRole("button", { name: "Створити профіль" }).click();
   await page.getByRole("button", { name: "Додати RMS Probe" }).click();
@@ -109,6 +120,10 @@ test("service worker не змінює Range і справжній MIDlet пиш
       intervals: [1000],
     })
     .toBe(true);
+  expect(loadedLibraries.sort()).toEqual([
+    "/engine/freej2me-web.jar",
+    "/engine/retro-bridge.jar",
+  ]);
   await page.frameLocator("iframe").locator("#display").click();
   await page.keyboard.press("Enter");
   await expect
@@ -120,6 +135,45 @@ test("service worker не змінює Range і справжній MIDlet пиш
   await expect(page.getByText("Гру зупинено", { exact: true })).toBeVisible({
     timeout: 45000,
   });
+});
+
+test("помилка HTTP при завантаженні рушія показується замість нескінченного Loading", async ({
+  page,
+}) => {
+  await shellReady(page);
+  await page.getByLabel("Як вас називати?").fill("Broken Proxy");
+  await page.getByRole("button", { name: "Створити профіль" }).click();
+  await page.getByRole("button", { name: "Додати RMS Probe" }).click();
+  await page.route("**/engine/freej2me-web.jar", (route) =>
+    route.fulfill({ status: 502, body: "Bad Gateway" }),
+  );
+  await page.getByRole("button", { name: "Грати", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "freej2me-web.jar: HTTP 502",
+    { timeout: 30000 },
+  );
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Грати", exact: true }),
+  ).toBeEnabled();
+});
+
+test("помилка імпорту модуля доходить до UI ще до запуску JVM", async ({
+  page,
+}) => {
+  await shellReady(page);
+  await page.getByLabel("Як вас називати?").fill("Missing Module");
+  await page.getByRole("button", { name: "Створити профіль" }).click();
+  await page.getByRole("button", { name: "Додати RMS Probe" }).click();
+  await page.route("**/engine/runtime.js", (route) =>
+    route.fulfill({ status: 404, body: "Not found" }),
+  );
+  await page.getByRole("button", { name: "Грати", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Не вдалося завантажити скрипт рушія",
+    { timeout: 15000 },
+  );
+  await expect(page.locator("iframe")).toHaveCount(0);
 });
 test("встановлення обробляє відмову користувача без фальшивого installed", async ({
   page,

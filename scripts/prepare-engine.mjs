@@ -9,7 +9,9 @@ await cp("vendor/freej2me-web/LICENSE", "public/engine/LICENSE");
 let main = (
   await readFile("vendor/freej2me-web/web/src/main.js", "utf8")
 ).replaceAll("\r\n", "\n");
-main = 'import { bridge } from "../bridge.js";\n' + main;
+main =
+  'import { bridge } from "../bridge.js";\nimport { loadRuntimeLibraries } from "../runtime.js";\n' +
+  main;
 main = main.replace(
   "const isDown = e.type",
   "if (bridge.keyboard(e)) return;\n        const isDown = e.type",
@@ -25,8 +27,16 @@ main =
   '    await bridge.prepare(lib);\n    const args = ["app", bridge.appId];\n    fractionScale = !bridge.integerScale;\n\n' +
   main.slice(launchEnd);
 main = main.replace(
-  'cheerpjWebRoot+"/freej2me-web.jar"',
-  'cheerpjWebRoot+"/freej2me-web.jar:"+cheerpjWebRoot+"/retro-bridge.jar"',
+  'cheerpjRunLibrary(cheerpjWebRoot+"/freej2me-web.jar")',
+  "loadRuntimeLibraries(message => bridge.stage(message))",
+);
+if (!main.includes("await loadRuntimeLibraries("))
+  throw Error(
+    "Upstream library loader changed; review the runtime integration.",
+  );
+main = main.replace(
+  'document.getElementById("loading").textContent = "Loading CheerpJ...";',
+  'bridge.stage("Ініціалізація CheerpJ та звуку…");',
 );
 main = main
   .replace("location.reload();", "bridge.restart();")
@@ -36,13 +46,10 @@ main = main.replace(
   "autoscale();\n                bridge.ready();\n            },",
 );
 main = main.replace(
-  "e.printStackTrace();",
-  "e.printStackTrace();\n        bridge.error(String(e));",
+  /FreeJ2ME\.main\(args\)\.catch\(e => \{[\s\S]*?\n    \}\);/,
+  "FreeJ2ME.main(args).catch(e => bridge.error(e));",
 );
-main = main.replace(
-  "\ninit();",
-  "\ninit().catch(e => bridge.error(String(e)));",
-);
+main = main.replace("\ninit();", "\ninit().catch(e => bridge.error(e));");
 // Application input owns physical mappings and key release across focus changes.
 main = main.replace(
   "setListeners();",
@@ -57,6 +64,7 @@ main = main.replace(
 );
 await writeFile("public/engine/src/main.js", main);
 await cp("engine/bridge.js", "public/engine/bridge.js");
+await cp("engine/runtime.js", "public/engine/runtime.js");
 await cp("engine/player.html", "public/engine/player.html");
 const result = spawnSync(process.execPath, ["scripts/build-java.mjs"], {
   stdio: "inherit",
