@@ -3002,3 +3002,34 @@ body.game-immersive .pwa-notice {
   .repository-admin,.repository-login { padding:18px; }
   .repository-editor form,.repository-delete { padding:18px; }
 }
+.offline-offer { margin:24px 40px 0; padding:20px; border:1px solid #65ddba40; border-radius:16px; background:linear-gradient(120deg,#25473e66,#1a202a); display:flex; align-items:center; gap:18px; }
+.offline-offer > div { flex:1; min-width:0; }
+.offline-offer strong { font-size:17px; }
+.offline-offer p { font-size:13px; color:var(--muted); line-height:1.6; margin:6px 0 0; }
+.offline-offer progress { width:100%; margin-top:12px; accent-color:#65ddba; }
+.offline-offer [role=alert] { color:#ff9eb1; }
+.repository-pagination { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:18px; padding:26px 0; color:var(--muted); font-size:13px; }
+.repository-pagination > div { display:flex; align-items:center; gap:12px; }
+.repository-pagination label { display:flex; align-items:center; gap:8px; }
+.repository-pagination select { padding:10px; }
+.phone-key,.phone-key * { user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; -webkit-user-drag:none; }
+.player-input-mode { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; }
+.player-input-mode select { max-width:175px; padding:10px; min-height:40px; }
+.player-page.touch-only .player-layout { grid-template-columns:minmax(0,1fr); }
+.is-immersive.touch-only .player-layout { grid-template-rows:minmax(0,1fr); }
+.immersive-toolbar { flex-wrap:wrap; }
+.immersive-toolbar .player-input-mode { font-size:0; }
+.immersive-toolbar .player-input-mode select { font-size:11px; padding:6px; min-height:32px; max-width:140px; }
+@media(max-width:600px) {
+ .offline-offer { margin:16px 16px 0; padding:16px; flex-wrap:wrap; gap:12px; position:relative; }
+ .offline-offer > div { flex-basis:100%; padding-right:20px; }
+ .offline-offer > .icon-button { position:absolute; right:8px; top:8px; }
+ .offline-offer > .primary { flex:1; }
+ .repository-pagination { justify-content:center; }
+ .repository-pagination > div { width:100%; justify-content:space-between; gap:6px; }
+ .repository-pagination button { padding:10px; min-height:44px; }
+ .repository-pagination label { font-size:0; }
+ .repository-pagination select { font-size:13px; }
+ .player-input-mode { flex-basis:100%; }
+ .immersive-toolbar .player-input-mode { flex-basis:auto; }
+}

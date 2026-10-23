@@ -28,12 +28,12 @@ async function atomic(file, bytes) {
   const tmp = file + "." + randomBytes(8).toString("hex") + ".tmp";
   const handle = await open(tmp, "wx", 0o600);
   try {
-    await handle.writeFile(bytes);
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-  try {
+    try {
+      await handle.writeFile(bytes);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     await rename(tmp, file);
   } catch (e) {
     await unlink(tmp).catch(() => {});
@@ -59,12 +59,12 @@ export async function startRepository({
       throw Error("ADMIN_PASSWORD must contain at least 16 characters");
     const salt = randomBytes(16).toString("hex");
     auth = { salt, hash: (await scrypt(password, salt, 64)).toString("hex") };
-    await atomic(join(directory, "auth.json"), JSON.stringify(auth));
     if (!process.env.ADMIN_PASSWORD)
       await atomic(
         join(directory, "admin-credentials.txt"),
         `Java Retro — пароль адміністратора\n${password}\nЗберігайте цей файл приватно.\n`,
       );
+    await atomic(join(directory, "auth.json"), JSON.stringify(auth));
   }
   let catalog;
   try {
@@ -198,7 +198,14 @@ export async function startRepository({
         json(res, 200, {
           games: catalog.games
             .filter((g) => isAdmin || g.published)
-            .map(({ configuration, ...g }) => g),
+            .map(({ configuration, ...g }) =>
+              isAdmin
+                ? g
+                : {
+                    ...g,
+                    metadata: { ...g.metadata, manifest: {}, midlets: [] },
+                  },
+            ),
         });
         return;
       }

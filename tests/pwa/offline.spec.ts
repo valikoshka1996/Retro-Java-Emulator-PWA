@@ -76,8 +76,16 @@ test("повний локальний пакет: SHA-256, ZIP, перезапу
       }),
     ).toBe(false);
     await context.unroute("**/engine/offline.js");
+    await page.getByRole("button", { name: "Закрити", exact: true }).click();
+    await expect(
+      page.getByRole("region", { name: "Підготовка до гри без інтернету" }),
+    ).toBeVisible();
     await page
-      .getByRole("button", { name: "Підготувати офлайн-пакет", exact: true })
+      .getByRole("button", { name: "Підготувати офлайн", exact: true })
+      .click();
+    await page
+      .locator(".sidebar")
+      .getByRole("button", { name: "Налаштування", exact: true })
       .click();
     await expect(
       page.getByText("Офлайн-пакет збережено та перевірено.", { exact: false }),

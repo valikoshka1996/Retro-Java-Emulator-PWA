@@ -1,4 +1,5 @@
 import { codeMap } from "./src/key.js";
+import { attachPointerInput } from "./input.js";
 const token = new URLSearchParams(location.search).get("token");
 function emit(kind, payload) {
   parent.postMessage({ retro: true, token, kind, payload }, location.origin);
@@ -10,7 +11,8 @@ let helper,
   queue,
   config,
   ready = false,
-  stopping = false;
+  stopping = false,
+  releasePointer = () => {};
 const held = new Map();
 const repeats = new Map();
 const actionCodes = {
@@ -66,6 +68,7 @@ function key(action, down, source = action) {
   dispatch(action, down);
 }
 function release() {
+  releasePointer();
   for (const [source, action] of [...held]) key(action, false, source);
 }
 let snapshots = Promise.resolve();
@@ -98,6 +101,11 @@ export const bridge = {
   attach(canvas, q) {
     display = canvas;
     queue = q;
+    releasePointer = attachPointerInput(
+      canvas,
+      q,
+      () => ready && config?.inputMode !== "keypad",
+    );
     window.addEventListener("blur", release);
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) {
@@ -167,6 +175,7 @@ export const bridge = {
   },
   async exit() {
     if (stopping) return;
+    release();
     ready = false;
     try {
       emit("rms", await snapshot());
@@ -198,6 +207,12 @@ window.addEventListener("message", async (e) => {
       return;
     } else if (method === "release") {
       release();
+      return;
+    } else if (method === "inputMode") {
+      if (!["both", "keypad", "touch"].includes(payload?.mode))
+        throw Error("Invalid input mode");
+      release();
+      config.inputMode = payload.mode;
       return;
     } else if (method === "snapshot") {
       result = await snapshot();

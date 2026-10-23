@@ -56,6 +56,16 @@ main = main.replace(
   "setListeners();\n    bridge.attach(display, evtQueue);",
 );
 main = main.replace("console.log('queuin event');", "");
+const pointerStart = main.indexOf(
+  "    display.addEventListener('mousedown', async e => {",
+);
+const pointerEnd = main.indexOf(
+  "    document.addEventListener('mousedown', e => {",
+  pointerStart,
+);
+if (pointerStart < 0 || pointerEnd < 0)
+  throw Error("Upstream pointer input changed; review integration.");
+main = main.slice(0, pointerStart) + main.slice(pointerEnd);
 // Keep a fractional fallback if a small mobile viewport cannot fit one native pixel scale.
 main = main.replace("scale = scale|0;", "scale = Math.floor(scale) || scale;");
 main = main.replace(
@@ -70,6 +80,7 @@ await writeFile("public/engine/src/main.js", main);
 await cp("engine/bridge.js", "public/engine/bridge.js");
 await cp("engine/runtime.js", "public/engine/runtime.js");
 await cp("engine/offline.js", "public/engine/offline.js");
+await cp("engine/input.js", "public/engine/input.js");
 await cp("engine/player.html", "public/engine/player.html");
 const result = spawnSync(process.execPath, ["scripts/build-java.mjs"], {
   stdio: "inherit",

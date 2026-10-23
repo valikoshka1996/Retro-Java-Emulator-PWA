@@ -27,6 +27,7 @@ export type Action =
   | "star"
   | "hash";
 export type KeyboardMapping = Record<Action, string>;
+export type InputMode = "both" | "keypad" | "touch";
 export interface TouchControlsConfiguration {
   theme: "graphite" | "mint" | "violet" | "light";
   width: number;
@@ -51,6 +52,7 @@ export interface EmulatorConfiguration {
   midlet: string;
   keys: KeyboardMapping;
   touchControls?: TouchControlsConfiguration;
+  inputMode?: InputMode;
 }
 export interface GameMetadata {
   name: string;

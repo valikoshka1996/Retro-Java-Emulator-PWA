@@ -26,13 +26,36 @@ import {
   normalizeTouchControls,
   validateTouchControls,
 } from "../src/touch";
-import { validateConfiguration } from "../src/config";
+import { validateConfiguration, defaultConfiguration } from "../src/config";
 import {
   refreshStorageHealth,
   requestDurableStorage,
   useStorageHealth,
 } from "../src/storage";
 const databases: RetroDB[] = [];
+it("WebGL перевіряється один раз і не залишає зайвий GPU-контекст", async () => {
+  const loseContext = vi.fn(),
+    getContext = vi.fn(() => ({ getExtension: () => ({ loseContext }) }));
+  vi.stubGlobal("document", { createElement: () => ({ getContext }) });
+  try {
+    const { hasWebGL2 } = await import("../src/capabilities");
+    expect(hasWebGL2()).toBe(true);
+    expect(hasWebGL2()).toBe(true);
+    expect(getContext).toHaveBeenCalledTimes(1);
+    expect(loseContext).toHaveBeenCalledTimes(1);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+it("режими керування: старі профілі та валідація імпорту", () => {
+  const c = defaultConfiguration();
+  expect(() => validateConfiguration(c)).not.toThrow();
+  for (const inputMode of ["both", "keypad", "touch"] as const)
+    expect(() => validateConfiguration({ ...c, inputMode })).not.toThrow();
+  expect(() =>
+    validateConfiguration({ ...c, inputMode: "bad" as any }),
+  ).toThrow("режим");
+});
 function database() {
   const d = new RetroDB("test-" + crypto.randomUUID());
   databases.push(d);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
   Gamepad2,
@@ -41,24 +41,36 @@ export function RepositoryStore({
     [editing, setEditing] = useState<RepositoryGame | null>(null);
   const files = useRef<HTMLInputElement>(null),
     folder = useRef<HTMLInputElement>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const loadController = useRef<AbortController | null>(null);
   const load = async () => {
+    loadController.current?.abort();
+    const controller = new AbortController();
+    loadController.current = controller;
     setLoading(true);
     try {
       const [catalog, session] = await Promise.all([
-        repositoryRequest<{ games: RepositoryGame[] }>("/games"),
-        repositoryRequest<{ admin: boolean }>("/session"),
+        repositoryRequest<{ games: RepositoryGame[] }>("/games", {
+          signal: controller.signal,
+        }),
+        repositoryRequest<{ admin: boolean }>("/session", {
+          signal: controller.signal,
+        }),
       ]);
       setEntries(catalog.games);
       setAdmin(session.admin);
       setError("");
     } catch (e) {
+      if (controller.signal.aborted) return;
       setError(String((e as Error).message));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
   useEffect(() => {
     void load();
+    return () => loadController.current?.abort();
   }, []);
   const run = async (key: string, fn: () => Promise<void>) => {
     if (busy) return;
@@ -107,20 +119,46 @@ export function RepositoryStore({
       if (failed.length) setError(failed.join("\n"));
     });
   };
-  const visible = entries
-    .filter(
-      (g) =>
-        ((manage && admin) || g.published) &&
-        (!genre || g.genre === genre) &&
-        `${g.title} ${g.metadata.vendor} ${g.tags.join(" ")}`
-          .toLowerCase()
-          .includes(query.toLowerCase()),
-    )
-    .sort(
-      (a, b) =>
-        Number(b.featured) - Number(a.featured) ||
-        a.title.localeCompare(b.title, "uk"),
-    );
+  const visible = useMemo(
+    () =>
+      entries
+        .filter(
+          (g) =>
+            ((manage && admin) || g.published) &&
+            (!genre || g.genre === genre) &&
+            `${g.title} ${g.metadata.vendor} ${g.tags.join(" ")}`
+              .toLowerCase()
+              .includes(query.toLowerCase()),
+        )
+        .sort(
+          (a, b) =>
+            Number(b.featured) - Number(a.featured) ||
+            a.title.localeCompare(b.title, "uk"),
+        ),
+    [entries, manage, admin, genre, query],
+  );
+  useEffect(() => setPage(1), [query, genre, manage, admin, pageSize]);
+  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize)),
+    currentPage = Math.min(page, totalPages);
+  const paginated = visible.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+  const installedGames = useMemo(
+    () => new Map(games.map((g) => [g.hash, g])),
+    [games],
+  );
+  const genres = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          entries
+            .filter((g) => g.published || (manage && admin))
+            .map((g) => g.genre),
+        ),
+      ).sort(),
+    [entries, manage, admin],
+  );
   return (
     <div className="content repository-page">
       <div className="page-heading">
@@ -284,17 +322,20 @@ export function RepositoryStore({
           onChange={(e) => setGenre(e.target.value)}
         >
           <option value="">Усі жанри</option>
-          {Array.from(
-            new Set(
-              entries
-                .filter((g) => g.published || (manage && admin))
-                .map((g) => g.genre),
-            ),
-          )
-            .sort()
-            .map((g) => (
-              <option key={g}>{g}</option>
-            ))}
+          {genres.map((g) => (
+            <option key={g}>{g}</option>
+          ))}
+        </select>
+        <select
+          aria-label="Ігор на сторінці"
+          value={pageSize}
+          onChange={(e) => setPageSize(+e.target.value)}
+        >
+          {[12, 24, 48].map((n) => (
+            <option key={n} value={n}>
+              {n} ігор
+            </option>
+          ))}
         </select>
         <button
           aria-label="Оновити каталог"
@@ -322,8 +363,8 @@ export function RepositoryStore({
         </section>
       ) : (
         <div className="repository-grid">
-          {visible.map((entry) => {
-            const installed = games.find((g) => g.hash === entry.id);
+          {paginated.map((entry) => {
+            const installed = installedGames.get(entry.id);
             return (
               <article className="repository-card" key={entry.id}>
                 <div className="repository-cover">
@@ -407,6 +448,43 @@ export function RepositoryStore({
             );
           })}
         </div>
+      )}
+      {!loading && visible.length > 0 && (
+        <nav className="repository-pagination" aria-label="Сторінки магазину">
+          <span>
+            Ігри {(currentPage - 1) * pageSize + 1}–
+            {Math.min(currentPage * pageSize, visible.length)} з{" "}
+            {visible.length}
+          </span>
+          <div>
+            <button
+              disabled={currentPage === 1}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              Попередня
+            </button>
+            <label>
+              Сторінка
+              <select
+                aria-label="Сторінка магазину"
+                value={currentPage}
+                onChange={(e) => setPage(+e.target.value)}
+              >
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {i + 1} / {totalPages}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              disabled={currentPage === totalPages}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Наступна
+            </button>
+          </div>
+        </nav>
       )}
       {editing && (
         <RepositoryEditor
@@ -498,7 +576,11 @@ function RepositoryEditor({
           });
         }}
       >
-        {error && <p role="alert" className="repository-error">{error}</p>}
+        {error && (
+          <p role="alert" className="repository-error">
+            {error}
+          </p>
+        )}
         <label>
           Назва гри
           <input

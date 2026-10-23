@@ -3,11 +3,13 @@ import type {
   EmulatorCapabilities,
   EmulatorConfiguration,
   Game,
+  InputMode,
 } from "./types";
 import { db, putSave, validateRms } from "./db";
 import { validateConfiguration } from "./config";
 import { binaryBlob } from "./archive";
 import { isOfflinePrepared } from "./offline";
+import { hasWebGL2 } from './capabilities';
 export interface EmulatorAdapter {
   installGame(game: Game): Promise<void>;
   launchGame(container: HTMLElement): Promise<void>;
@@ -61,7 +63,7 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
       screenshot: true,
       m3g: true,
       mascotCapsule: "v3",
-      webgl2: !!document.createElement("canvas").getContext("webgl2"),
+      webgl2: hasWebGL2(),
       volume: false,
     };
   }
@@ -291,6 +293,15 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
   }
   sendKeyUp(action: Action, source: string = action) {
     this.send("key", { action, down: false, source });
+  }
+  setInputMode(mode: InputMode) {
+    this.releaseKeys();
+    if (this.game)
+      this.game = {
+        ...this.game,
+        configuration: { ...this.game.configuration, inputMode: mode },
+      };
+    this.send("inputMode", { mode });
   }
   releaseKeys() {
     this.send("release");

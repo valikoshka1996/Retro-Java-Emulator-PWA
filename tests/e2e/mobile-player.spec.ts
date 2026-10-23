@@ -98,6 +98,24 @@ test("iPhone без Fullscreen API: повний екран, поворот, н�
   });
   await session.send("Input.dispatchTouchEvent", {
     type: "touchEnd",
+    touchPoints: points.slice(1),
+  });
+  await expect
+    .poll(() =>
+      frame.evaluate(() =>
+        (window as any).keys
+          .filter((k: any) => !k.down)
+          .map((k: any) => k.action),
+      ),
+    )
+    .toEqual(["fire"]);
+  expect(
+    await page
+      .locator(".key-fire span")
+      .evaluate((e) => getComputedStyle(e).webkitUserSelect),
+  ).toBe("none");
+  await session.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
     touchPoints: [],
   });
   await expect
@@ -155,9 +173,14 @@ test("iPhone без Fullscreen API: повний екран, поворот, н�
   );
   await expect(page.locator(".sidebar")).toBeVisible();
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
+  await page.getByLabel("Режим керування").selectOption("touch");
+  await expect(page.locator(".phone-keypad")).toHaveCount(0);
   await page.reload();
   await page.getByRole("button", { name: "Відкрити RMS Probe" }).click();
   await page.getByRole("button", { name: "Грати", exact: true }).click();
+  await expect(page.getByLabel("Режим керування")).toHaveValue("touch");
+  await expect(page.locator(".phone-keypad")).toHaveCount(0);
+  await page.getByLabel("Режим керування").selectOption("both");
   await expect(page.locator(".phone-keypad.theme-mint")).toBeVisible();
   expect(errors).toEqual([]);
 });

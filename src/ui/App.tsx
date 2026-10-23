@@ -51,7 +51,13 @@ import {
   validateConfiguration,
 } from "../config";
 import { t } from "../i18n";
-import type { Game, EmulatorConfiguration, Action, Profile } from "../types";
+import type {
+  Game,
+  EmulatorConfiguration,
+  Action,
+  Profile,
+  InputMode,
+} from "../types";
 import { PhoneKeypad, TouchControlsEditor } from "./PhoneKeypad";
 import { normalizeTouchControls } from "../touch";
 import { useGameFullscreen } from "./useGameFullscreen";
@@ -59,6 +65,8 @@ import { PwaSettings } from "../pwa/PwaControls";
 import { requestDurableStorage, useStorageHealth } from "../storage";
 import { OfflineSettings } from "./OfflineSettings";
 import { RepositoryStore } from "./RepositoryStore";
+import { OfflineOffer } from "./OfflineOffer";
+import { hasWebGL2 } from "../capabilities";
 const date = (n?: number) =>
   n ? new Date(n).toLocaleDateString("uk-UA") : "Ще не запускали";
 const avatars = ["👾", "🎮", "🚀", "🦊", "🤖", "💜"];
@@ -376,6 +384,7 @@ export function App() {
             <span className="version">v0.1</span>
           </span>
         </header>
+        {!playing && !selectedGame && page === "library" && <OfflineOffer />}
         {playing && selectedGame ? (
           <Player
             game={selectedGame}
@@ -1319,11 +1328,8 @@ function GameSettings({ game, run }: { game: Game; run: Run }) {
         гучності для всіх звукових API не підтримується.
       </p>
       <p className="muted small">
-        WebGL 2:{" "}
-        {document.createElement("canvas").getContext("webgl2")
-          ? "доступний"
-          : "недоступний"}
-        . Samsung API потребує перевірки; окремого телефонного пресету немає.
+        WebGL 2: {hasWebGL2() ? "доступний" : "недоступний"}. Samsung API
+        потребує перевірки; окремого телефонного пресету немає.
       </p>
       <button className="primary">
         {saved ? <Check size={17} /> : <Settings size={17} />}{" "}
@@ -1653,6 +1659,10 @@ function Player({
     normalizeTouchControls(game.configuration.touchControls),
   );
   const [showControls, setShowControls] = useState(false);
+  const [inputMode, setInputMode] = useState<InputMode>(
+    game.configuration.inputMode || "both",
+  );
+  const [modeSaving, setModeSaving] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<SaveFeedback>({
     state: "pending",
   });
@@ -1691,7 +1701,14 @@ function Player({
   }, []);
   useEffect(() => {
     if (!running) return;
+    const physicalHeld = new Map<string, Action>();
     const key = (e: KeyboardEvent) => {
+      if (e.type === "keyup" && physicalHeld.has(e.code)) {
+        adapter.sendKeyUp(physicalHeld.get(e.code)!, "keyboard:" + e.code);
+        physicalHeld.delete(e.code);
+        e.preventDefault();
+        return;
+      }
       if (
         (e.target as HTMLElement)?.closest(
           "input,select,textarea,dialog,button",
@@ -1701,6 +1718,7 @@ function Player({
       const a = actions.find((a) => game.configuration.keys[a] === e.code);
       if (a) {
         e.preventDefault();
+        if (e.type === "keydown") physicalHeld.set(e.code, a);
         e.type === "keydown"
           ? adapter.sendKeyDown(a, "keyboard:" + e.code)
           : adapter.sendKeyUp(a, "keyboard:" + e.code);
@@ -1708,12 +1726,23 @@ function Player({
     };
     window.addEventListener("keydown", key);
     window.addEventListener("keyup", key);
-    const release = () => adapter.releaseKeys();
+    const release = () => {
+      physicalHeld.clear();
+      adapter.releaseKeys();
+    };
     window.addEventListener("blur", release);
     document.addEventListener("visibilitychange", release);
     let frame = 0;
     let held = new Set<string>();
     const poll = () => {
+      if (document.hidden || showControls || showSaves) {
+        if (held.size) {
+          adapter.releaseKeys();
+          held.clear();
+        }
+        frame = requestAnimationFrame(poll);
+        return;
+      }
       const next = new Set<string>();
       for (const g of navigator.getGamepads?.() || []) {
         if (!g) continue;
@@ -1753,7 +1782,7 @@ function Player({
       cancelAnimationFrame(frame);
       release();
     };
-  }, [running, adapter, game.configuration.keys]);
+  }, [running, adapter, game.configuration.keys, showControls, showSaves]);
   const stop = async () => {
     setWorking(true);
     try {
@@ -1764,16 +1793,55 @@ function Player({
       setWorking(false);
     }
   };
+  const inputSelector = (
+    <label className="player-input-mode">
+      Керування
+      <select
+        aria-label="Режим керування"
+        value={inputMode}
+        disabled={working || modeSaving}
+        onChange={(e) => {
+          const mode = e.target.value as InputMode;
+          void run(async () => {
+            setModeSaving(true);
+            try {
+              await db.transaction("rw", db.games, async () => {
+                const current = await db.games.get(game.id);
+                if (!current) throw Error("Гру не знайдено.");
+                const configuration = {
+                  ...current.configuration,
+                  inputMode: mode,
+                };
+                validateConfiguration(configuration);
+                await db.games.update(game.id, { configuration });
+              });
+              adapter.setInputMode(mode);
+              setInputMode(mode);
+            } finally {
+              setModeSaving(false);
+            }
+          });
+        }}
+      >
+        <option value="both">Клавіатура + тач</option>
+        <option value="keypad">Тільки клавіатура</option>
+        <option value="touch">Тільки тач</option>
+      </select>
+    </label>
+  );
   return (
     <div
       ref={surface}
       className={
-        "content player-page" + (fullscreen.active ? " is-immersive" : "")
+        "content player-page" +
+        (fullscreen.active ? " is-immersive" : "") +
+        (inputMode === "touch" ? " touch-only" : "")
       }
       data-fullscreen-mode={fullscreen.mode || "window"}
     >
       {fullscreen.active && (
         <div className="immersive-toolbar">
+          {inputSelector}
           <button className="secondary" onClick={() => void fullscreen.leave()}>
             <ChevronLeft size={16} />
             Вийти
@@ -1817,6 +1885,7 @@ function Player({
         </span>
       </div>
       <div className="player-toolbar">
+        {!fullscreen.active && inputSelector}
         <button
           className="secondary"
           disabled={running || working}
@@ -1915,19 +1984,27 @@ function Player({
             </div>
           )}
         </div>
-        <aside className="touch-controls">
-          <PhoneKeypad
-            configuration={touchControls}
-            adapter={adapter}
-            disabled={!running}
-          />
-          <p className="touch-controls-caption">
-            Стрілки / Enter · F1 / F2 · Gamepad
-            <br />
-            RMS — автокопія кожні 3 с
-          </p>
-        </aside>
+        {inputMode !== "touch" && (
+          <aside className="touch-controls">
+            <PhoneKeypad
+              configuration={touchControls}
+              adapter={adapter}
+              disabled={!running}
+            />
+            <p className="touch-controls-caption">
+              Стрілки / Enter · F1 / F2 · Gamepad
+              <br />
+              RMS — автокопія кожні 3 с
+            </p>
+          </aside>
+        )}
       </div>
+      {inputMode === "touch" && (
+        <p className="hint">
+          Торкання екрана працюють у Java ME іграх із підтримкою сенсорного
+          керування. Клавіатуру можна повернути в меню «Керування».
+        </p>
+      )}
       <p className="hint">
         Перед закриттям браузера натисніть «Стоп», щоб дочекатися фінального
         запису RMS. При раптовому закритті останні секунди можуть не потрапити

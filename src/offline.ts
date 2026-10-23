@@ -52,7 +52,11 @@ export function getOfflineManifest() {
     } catch {
       return;
     }
-  })());
+  })().then((manifest) => {
+    // A transient network failure must not disable preparation until reload.
+    if (!manifest) manifestPromise = undefined;
+    return manifest;
+  }));
 }
 const key = (file: Resource) => new URL(file.url, location.origin).href;
 async function verified(file: Resource, response: Response) {
@@ -83,9 +87,11 @@ export async function isOfflinePrepared() {
   return m.resources.every((f) => keys.has(key(f)));
 }
 export async function refreshOffline() {
+  if (useOffline.getState().phase === "busy") return;
   try {
     const manifest = await getOfflineManifest(),
       ready = await isOfflinePrepared();
+    if (useOffline.getState().phase === "busy") return;
     useOffline.setState({
       manifest,
       phase: ready ? "ready" : "absent",

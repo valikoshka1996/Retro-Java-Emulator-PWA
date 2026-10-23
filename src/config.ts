@@ -88,6 +88,11 @@ export const defaultConfiguration = (): EmulatorConfiguration => ({
   touchControls: defaultTouchControls(),
 });
 export function validateConfiguration(c: EmulatorConfiguration) {
+  if (
+    c.inputMode !== undefined &&
+    !["both", "keypad", "touch"].includes(c.inputMode)
+  )
+    throw Error("Непідтримуваний режим керування.");
   if (c.touchControls !== undefined) validateTouchControls(c.touchControls);
   if (
     !Number.isInteger(c.width) ||

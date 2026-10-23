@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Settings, RotateCcw, Check } from "lucide-react";
 import type { Action, TouchControlsConfiguration } from "../types";
 import type { EmulatorAdapter } from "../emulator";
@@ -62,6 +62,27 @@ function TouchKey({
   showLetters: boolean;
   preview?: boolean;
 }) {
+  const pointers = useRef(new Set<number>());
+  const keyboardHeld = useRef(false);
+  const releaseKeyboard = () => {
+    if (keyboardHeld.current) {
+      keyboardHeld.current = false;
+      adapter?.sendKeyUp(action, "button:" + action);
+    }
+  };
+  const releasePointer = (id: number) => {
+    if (pointers.current.delete(id)) adapter?.sendKeyUp(action, "touch:" + id);
+  };
+  useEffect(() => {
+    const release = () => {
+      for (const id of pointers.current)
+        adapter?.sendKeyUp(action, "touch:" + id);
+      pointers.current.clear();
+      releaseKeyboard();
+    };
+    if (disabled) release();
+    return release;
+  }, [adapter, action, disabled]);
   const display =
     action === "softLeft"
       ? "Ліва"
@@ -75,33 +96,34 @@ function TouchKey({
       disabled={disabled}
       tabIndex={preview ? -1 : undefined}
       aria-label={labels[action]}
+      draggable={false}
+      onContextMenu={(event) => event.preventDefault()}
+      onDragStart={(event) => event.preventDefault()}
       onPointerDown={(event) => {
         event.preventDefault();
+        pointers.current.add(event.pointerId);
         event.currentTarget.setPointerCapture(event.pointerId);
         adapter?.sendKeyDown(action, "touch:" + event.pointerId);
       }}
-      onPointerUp={(event) =>
-        adapter?.sendKeyUp(action, "touch:" + event.pointerId)
-      }
-      onLostPointerCapture={(event) =>
-        adapter?.sendKeyUp(action, "touch:" + event.pointerId)
-      }
-      onPointerCancel={(event) =>
-        adapter?.sendKeyUp(action, "touch:" + event.pointerId)
-      }
+      onPointerUp={(event) => releasePointer(event.pointerId)}
+      onLostPointerCapture={(event) => releasePointer(event.pointerId)}
+      onPointerCancel={(event) => releasePointer(event.pointerId)}
       onKeyDown={(event) => {
         if (event.key === " " || event.key === "Enter") {
           event.preventDefault();
-          adapter?.sendKeyDown(action, "button:" + action);
+          if (!keyboardHeld.current) {
+            keyboardHeld.current = true;
+            adapter?.sendKeyDown(action, "button:" + action);
+          }
         }
       }}
       onKeyUp={(event) => {
         if (event.key === " " || event.key === "Enter") {
           event.preventDefault();
-          adapter?.sendKeyUp(action, "button:" + action);
+          releaseKeyboard();
         }
       }}
-      onBlur={() => adapter?.sendKeyUp(action, "button:" + action)}
+      onBlur={releaseKeyboard}
     >
       <span>{display}</span>
       {showLetters && letters[action] && <small>{letters[action]}</small>}
