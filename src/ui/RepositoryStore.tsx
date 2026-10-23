@@ -42,6 +42,11 @@ export function RepositoryStore({
   const files = useRef<HTMLInputElement>(null),
     folder = useRef<HTMLInputElement>(null);
   const [page, setPage] = useState(1);
+  const catalogTop = useRef<HTMLDivElement>(null);
+  const navigatePage = (next: number) => {
+    setPage(next);
+    catalogTop.current?.scrollIntoView({ block: "start" });
+  };
   const [pageSize, setPageSize] = useState(12);
   const loadController = useRef<AbortController | null>(null);
   const load = async () => {
@@ -306,7 +311,7 @@ export function RepositoryStore({
           {notice}
         </p>
       )}
-      <div className="repository-toolbar">
+      <div className="repository-toolbar" ref={catalogTop}>
         <label className="search">
           <Search size={18} />
           <input
@@ -459,7 +464,7 @@ export function RepositoryStore({
           <div>
             <button
               disabled={currentPage === 1}
-              onClick={() => setPage(currentPage - 1)}
+              onClick={() => navigatePage(currentPage - 1)}
             >
               Попередня
             </button>
@@ -468,7 +473,7 @@ export function RepositoryStore({
               <select
                 aria-label="Сторінка магазину"
                 value={currentPage}
-                onChange={(e) => setPage(+e.target.value)}
+                onChange={(e) => navigatePage(+e.target.value)}
               >
                 {Array.from({ length: totalPages }, (_, i) => (
                   <option key={i + 1} value={i + 1}>
@@ -479,7 +484,7 @@ export function RepositoryStore({
             </label>
             <button
               disabled={currentPage === totalPages}
-              onClick={() => setPage(currentPage + 1)}
+              onClick={() => navigatePage(currentPage + 1)}
             >
               Наступна
             </button>
