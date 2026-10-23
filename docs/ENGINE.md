@@ -1,5 +1,11 @@
 # Дослідження FreeJ2ME Web і інтеграція
 
+## Локальний офлайн-пакет
+
+`src/pwa/runtime-resources.json` містить URL, розміри й SHA-256 зафіксованих CDN-ресурсів, без vendor-бінарників. Build додає хеші всіх локальних engine-файлів і створює `offline-manifest.json`. Користувач явно завантажує пакет у CacheStorage; оригінальні URL CheerpJ залишаються CDN-адресами. `engine/offline.js` підключає кеш до внутрішнього IFrameProxyDownloader після cheerpjInit: це версійно залежна інтеграція, яку потрібно повторно перевіряти при оновленні runtime. Ліцензійні прапорці й перевірки не змінюються.
+
+Runtime JAR та Probe пакуються з фіксованим ZIP mtime, щоб та сама Java-збірка мала стабільний хеш офлайн-пакета. UI пропонує ZIP-перенесення з перевіркою довіреного manifest. Повний холодний offline JVM/RMS сценарій є у `tests/pwa/offline.spec.ts`; поведінка фізичного iPhone перевіряється окремо.
+
 Перевірено 23 жовтня 2026. Upstream: https://github.com/zb3/freej2me-web, commit `c19416e75cbc15f9a27f7e967ee81cb108761e30`. Локальний snapshot — `vendor/freej2me-web`. Не переносимо автоматично нові версії runtime.
 
 ## Код і запуск

@@ -6,6 +6,10 @@ Repository: https://github.com/valikoshka1996/Retro-Java-Emulator-PWA
 
 `push main` → перевірки Node/Java/Playwright → Docker build на GitHub runner → перевірка контейнера й byte ranges → `docker save` → SSH/SCP → `docker load` → окремий Compose-проєкт → healthcheck → активація релізу.
 
+Браузерні тести запускаються у готовому офіційному образі Playwright, зафіксованому за версією й digest; повільне встановлення Chromium/WebKit та їхніх системних пакетів через apt прибрано. Образ тестів завантажується тільки на GitHub runner, не на production-сервер.
+
+Магазин додає другий образ `APP_IMAGE-repository`, приватну Docker-мережу та постійний том. Обидва production-образи передаються одним архівом; деплой перевіряє їхні labels і revision. Backend не відкриває порт на хості. Пароль першого входу та резервні копії описані в [REPOSITORY.md](REPOSITORY.md). aaPanel продовжує проксіювати `http://127.0.0.1:18087`.
+
 PR виконує перевірки та Docker smoke test **без** SSH-деплою. `workflow_dispatch` деплоїть лише `main`. GitHub Actions використовує `contents: read` і зафіксовані SHA офіційних actions. Docker Hub/GHCR login чи PAT для деплою не потрібні: готовий образ передається безпосередньо на сервер.
 
 ## Secrets і Variables

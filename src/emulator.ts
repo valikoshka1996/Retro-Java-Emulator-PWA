@@ -7,6 +7,7 @@ import type {
 import { db, putSave, validateRms } from "./db";
 import { validateConfiguration } from "./config";
 import { binaryBlob } from "./archive";
+import { isOfflinePrepared } from "./offline";
 export interface EmulatorAdapter {
   installGame(game: Game): Promise<void>;
   launchGame(container: HTMLElement): Promise<void>;
@@ -161,7 +162,7 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
   };
   async launchGame(container: HTMLElement) {
     if (!this.game || this.frame) throw Error("Некоректний стан запуску.");
-    if (!navigator.onLine)
+    if (!navigator.onLine && !(await isOfflinePrepared()))
       throw Error(
         "Для запуску гри потрібен інтернет: CheerpJ завантажується з CDN. Бібліотека та збереження залишаються на пристрої.",
       );

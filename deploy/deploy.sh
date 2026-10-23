@@ -42,6 +42,8 @@ docker load --input "$release/image.tar.gz"
 [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" == "$revision" ]] || { echo 'Image revision mismatch' >&2; exit 1; }
 host_arch=$(docker info --format '{{.Architecture}}')
 image_arch=$(docker image inspect --format '{{.Architecture}}' "$image")
+[[ "$(docker image inspect --format '{{index .Config.Labels "io.java-retro.app"}}' "$image-repository")" == "$project" ]] || { echo 'Repository image label mismatch' >&2; exit 1; }
+[[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image-repository")" == "$revision" ]] || { echo 'Repository image revision mismatch' >&2; exit 1; }
 case "$host_arch" in x86_64) host_arch=amd64;; aarch64) host_arch=arm64;; esac
 [[ "$host_arch" == "$image_arch" ]] || { echo "Server architecture $host_arch does not match image $image_arch; existing app unchanged." >&2; exit 1; }
 printf 'APP_IMAGE=%s\nAPP_PORT=%s\n' "$image" "$app_port" > "$release/release.env"
@@ -62,10 +64,10 @@ rollback() {
   local status=$?
   trap - ERR
   echo 'Deployment failed; collecting logs for this application only.' >&2
-  compose_release "$release" logs --tail=60 web >&2 || true
+  compose_release "$release" logs --tail=60 >&2 || true
   if [[ -n "$previous" ]]; then
     echo 'Restoring the previous application release.' >&2
-    compose_release "$previous" up -d --no-deps --wait --wait-timeout 90 web || echo 'Automatic rollback failed; inspect this application manually.' >&2
+    compose_release "$previous" up -d --wait --wait-timeout 90 || echo 'Automatic rollback failed; inspect this application manually.' >&2
   else
     echo 'No previous release exists. The failed application container is retained for diagnosis.' >&2
   fi
@@ -73,8 +75,9 @@ rollback() {
 }
 trap rollback ERR
 compose_release "$release" config -q
-compose_release "$release" up -d --no-deps --wait --wait-timeout 90 web
+compose_release "$release" up -d --wait --wait-timeout 90
 curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$app_port/healthz"
+curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$app_port/api/repository/games" >/dev/null
 range_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 10 -H 'Range: bytes=0-15' "http://127.0.0.1:$app_port/engine/freej2me-web.jar")
 [[ "$range_status" == 206 ]] || { echo "Byte ranges are broken (HTTP $range_status)" >&2; false; }
 if [[ -n "$previous" && "$previous" != "$release" ]]; then ln -sfn "$previous" "$root/previous"; fi

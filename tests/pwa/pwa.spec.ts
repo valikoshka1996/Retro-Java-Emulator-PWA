@@ -106,7 +106,7 @@ test("повне закриття браузера → офлайн: профі�
       .getByRole("button", { name: "Налаштування", exact: true })
       .click();
     await page
-      .locator('input[type=file][accept=".zip"]')
+      .getByLabel("Імпорт профілю", { exact: true })
       .setInputFiles(info.outputPath("profile.zip"));
     await page.getByRole("button", { name: "Закрити", exact: true }).click();
     await expect(
@@ -183,6 +183,7 @@ test("manifest, PNG-іконки, кеш оболонки та офлайн-бі
 });
 test("HTTP 206, proxy без Range та справжній MIDlet з RMS", async ({
   page,
+  context,
 }) => {
   const logs: string[] = [];
   page.on("console", (message) => logs.push(message.text()));
@@ -202,7 +203,7 @@ test("HTTP 206, proxy без Range та справжній MIDlet з RMS", async
   expect(range.size).toBe(16);
   const loadedLibraries: string[] = [];
   // Reproduce aaPanel stripping Range: any JAR request receives the full HTTP 200 body.
-  await page.route("**/engine/*.jar", async (route) => {
+  await context.route("**/engine/*.jar", async (route) => {
     const headers = { ...route.request().headers() };
     delete headers.range;
     delete headers["if-range"];
@@ -240,12 +241,13 @@ test("HTTP 206, proxy без Range та справжній MIDlet з RMS", async
 
 test("помилка HTTP при завантаженні рушія показується замість нескінченного Loading", async ({
   page,
+  context,
 }) => {
   await shellReady(page);
   await page.getByLabel("Як вас називати?").fill("Broken Proxy");
   await page.getByRole("button", { name: "Створити профіль" }).click();
   await page.getByRole("button", { name: "Додати RMS Probe" }).click();
-  await page.route("**/engine/freej2me-web.jar", (route) =>
+  await context.route("**/engine/freej2me-web.jar", (route) =>
     route.fulfill({ status: 502, body: "Bad Gateway" }),
   );
   await page.getByRole("button", { name: "Грати", exact: true }).click();
@@ -261,12 +263,13 @@ test("помилка HTTP при завантаженні рушія показ�
 
 test("помилка імпорту модуля доходить до UI ще до запуску JVM", async ({
   page,
+  context,
 }) => {
   await shellReady(page);
   await page.getByLabel("Як вас називати?").fill("Missing Module");
   await page.getByRole("button", { name: "Створити профіль" }).click();
   await page.getByRole("button", { name: "Додати RMS Probe" }).click();
-  await page.route("**/engine/runtime.js", (route) =>
+  await context.route("**/engine/runtime.js", (route) =>
     route.fulfill({ status: 404, body: "Not found" }),
   );
   await page.getByRole("button", { name: "Грати", exact: true }).click();

@@ -4,9 +4,9 @@ set -Eeuo pipefail
 export APP_PORT=${APP_PORT:-18087}
 readonly project=retro-java-emulator-pwa-ci
 compose() { docker compose -p "$project" -f deploy/compose.yaml "$@"; }
-cleanup() { compose logs --tail=60 web || true; compose down; }
+cleanup() { compose logs --tail=60 || true; compose down; }
 trap cleanup EXIT
-compose up -d --wait --wait-timeout 60 web
+compose up -d --wait --wait-timeout 60
 base="http://127.0.0.1:$APP_PORT"
 curl --fail --silent --show-error "$base/healthz" | grep -Fxq ok
 curl --fail --silent --show-error "$base/" | grep -q 'manifest.webmanifest'
@@ -18,3 +18,6 @@ grep -iq 'Content-Range: bytes 0-15/' <<< "$headers"
 [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' "$base/engine/missing.jar")" == 404 ]]
 curl --fail --silent --show-error -I "$base/sw.js" | grep -iq 'Cache-Control: no-store'
 echo 'Production Docker smoke test passed.'
+curl --fail --silent --show-error "$base/api/repository/games" | grep -q '"games":\[\]'
+[[ "$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST "$base/api/repository/games?filename=denied.jar")" == 401 ]]
+[[ -z "$(compose port repository 8081 2>/dev/null || true)" ]]

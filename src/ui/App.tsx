@@ -27,6 +27,7 @@ import {
   Square,
   Maximize,
   Camera,
+  Store,
   AlertCircle,
 } from "lucide-react";
 import {
@@ -56,6 +57,8 @@ import { normalizeTouchControls } from "../touch";
 import { useGameFullscreen } from "./useGameFullscreen";
 import { PwaSettings } from "../pwa/PwaControls";
 import { requestDurableStorage, useStorageHealth } from "../storage";
+import { OfflineSettings } from "./OfflineSettings";
+import { RepositoryStore } from "./RepositoryStore";
 const date = (n?: number) =>
   n ? new Date(n).toLocaleDateString("uk-UA") : "Ще не запускали";
 const avatars = ["👾", "🎮", "🚀", "🦊", "🤖", "💜"];
@@ -297,6 +300,7 @@ export function App() {
         <nav>
           {[
             [Library, "library", t("library")],
+            [Store, "store", "Магазин"],
             [Heart, "favorites", t("favorites")],
             [Users, "profiles", t("profiles")],
           ].map(([Icon, key, text]) => {
@@ -363,7 +367,9 @@ export function App() {
                 ? t("profiles")
                 : page === "favorites"
                   ? t("favorites")
-                  : t("library")}
+                  : page === "store"
+                    ? "Магазин"
+                    : t("library")}
           </span>
           <span className="topbar-status">
             <span className="status-dot" /> FreeJ2ME Web{" "}
@@ -382,6 +388,12 @@ export function App() {
             back={() => setSelected(null)}
             play={() => setPlaying(true)}
             run={run}
+          />
+        ) : page === "store" ? (
+          <RepositoryStore
+            profileId={profile.id}
+            games={games}
+            open={(id) => setSelected(id)}
           />
         ) : page === "profiles" ? (
           <div className="content">
@@ -861,6 +873,7 @@ function GlobalSettings({ profile, run }: { profile: Profile; run: Run }) {
   return (
     <div className="settings-stack">
       <PwaSettings />
+      <OfflineSettings />
       <section>
         <h3>
           Профіль {profile.avatar} {profile.name}
@@ -886,6 +899,7 @@ function GlobalSettings({ profile, run }: { profile: Profile; run: Run }) {
           <label className="secondary file-label">
             <Upload size={16} /> Імпорт профілю
             <input
+              aria-label="Імпорт профілю"
               type="file"
               accept=".zip"
               onChange={(e) => {
@@ -943,8 +957,8 @@ function GlobalSettings({ profile, run }: { profile: Profile; run: Run }) {
         <h3>Рушій і сумісність</h3>
         <p className="muted">
           FreeJ2ME Web · GPL-3.0-or-later та сторонні ліцензії. CheerpJ
-          завантажується з CDN і потребує інтернету. M3G та Mascot Capsule v3
-          потребують WebGL 2. Пауза й повні snapshots недоступні.
+          завантажується з CDN або підготовленого офлайн-пакета. M3G та Mascot
+          Capsule v3 потребують WebGL 2. Пауза й повні snapshots недоступні.
         </p>
         <p className="muted">
           Локальні профілі розділяють дані застосунку. Це не захист від навмисно

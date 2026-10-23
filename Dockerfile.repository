@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY server ./server
+COPY scripts/build-repository.mjs ./scripts/build-repository.mjs
+COPY src ./src
+RUN npm run repository:build
+
+FROM node:24-bookworm-slim
+ARG VCS_REF=local
+LABEL io.java-retro.app="retro-java-emulator-pwa" org.opencontainers.image.revision="${VCS_REF}"
+WORKDIR /app
+COPY --from=build /app/dist-repository/server.mjs ./server.mjs
+RUN mkdir /data && chown node:node /data
+ENV NODE_ENV=production REPOSITORY_DATA=/data PORT=8081
+USER node
+EXPOSE 8081
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=6 CMD node -e "fetch('http://127.0.0.1:8081/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node","server.mjs"]

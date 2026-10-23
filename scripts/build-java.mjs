@@ -43,11 +43,14 @@ await mkdir("public/fixtures", { recursive: true });
 await mkdir("public/engine", { recursive: true });
 await writeFile(
   "public/engine/retro-bridge.jar",
-  zipSync({
-    "retro/RetroBridge.class": new Uint8Array(
-      await readFile(".cache/classes/retro/RetroBridge.class"),
-    ),
-  }),
+  zipSync(
+    {
+      "retro/RetroBridge.class": new Uint8Array(
+        await readFile(".cache/classes/retro/RetroBridge.class"),
+      ),
+    },
+    { mtime: new Date("2000-01-01T00:00:00Z") },
+  ),
 );
 const probe = {
   "META-INF/MANIFEST.MF": strToU8(
@@ -57,4 +60,7 @@ const probe = {
 for (const file of await readdir(".cache/classes"))
   if (file.startsWith("RmsProbe") && file.endsWith(".class"))
     probe[file] = new Uint8Array(await readFile(".cache/classes/" + file));
-await writeFile("public/fixtures/rms-probe.jar", zipSync(probe));
+await writeFile(
+  "public/fixtures/rms-probe.jar",
+  zipSync(probe, { mtime: new Date("2000-01-01T00:00:00Z") }),
+);

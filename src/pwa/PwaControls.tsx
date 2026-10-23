@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Download, RefreshCw, WifiOff, X, Check } from "lucide-react";
 import { applyPwaUpdate, installPwa, usePwa } from "./client";
+import { useOffline } from "../offline";
 
 export function PwaControls() {
   const { prompt, installed, online, updateReady } = usePwa();
+  const offline = useOffline();
   const [hideInstall, setHideInstall] = useState(false),
     [hideUpdate, setHideUpdate] = useState(false),
     [busy, setBusy] = useState(false),
@@ -34,7 +36,9 @@ export function PwaControls() {
           <p>
             <strong>Ви офлайн</strong>
             <span>
-              Бібліотека доступна. Для нового запуску гри потрібен інтернет.
+              {offline.phase === "ready"
+                ? "Локальний рушій підготовлено. Ігри та збереження доступні."
+                : "Бібліотека доступна. Для запуску гри спочатку підготуйте офлайн-пакет у налаштуваннях."}
             </span>
           </p>
         </div>
@@ -159,7 +163,8 @@ export function PwaSettings() {
         {ready
           ? "Оболонку збережено для офлайн-відкриття."
           : "Офлайн-оболонка підготовлюється у production-збірці після першого відкриття."}{" "}
-        Ігри та RMS залишаються в IndexedDB. Запуск CheerpJ потребує інтернету.
+        Ігри та RMS залишаються в IndexedDB. Для запуску без мережі підготуйте
+        офлайн-пакет нижче.
       </p>
       {(error || message) && (
         <p className="hint" role="status">

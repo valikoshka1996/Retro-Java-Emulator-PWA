@@ -54,7 +54,7 @@ test("бібліотека, клавіатура, профілі, експорт
   ).toBe(true);
   await page.getByRole("button", { name: "Налаштування", exact: true }).click();
   await page
-    .locator('input[type=file][accept=".zip"]')
+    .getByLabel("Імпорт профілю", { exact: true })
     .setInputFiles(testInfo.outputPath("profile.zip"));
   await page.getByRole("button", { name: "Закрити", exact: true }).click();
   await expect(

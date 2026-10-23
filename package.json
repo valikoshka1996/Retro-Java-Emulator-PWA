@@ -13,7 +13,10 @@
     "engine:prepare": "node scripts/prepare-engine.mjs",
     "fixtures:build": "node scripts/build-java.mjs",
     "test:e2e": "playwright test",
-    "test:webkit": "playwright test --config playwright.webkit.config.ts"
+    "test:webkit": "playwright test --config playwright.webkit.config.ts",
+    "repository:build": "node scripts/build-repository.mjs",
+    "repository:start": "node dist-repository/server.mjs",
+    "test:repository": "playwright test --config playwright.repository.config.ts"
   },
   "dependencies": {
     "dexie": "^4.2.0",
@@ -30,6 +33,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "esbuild": "^0.28.2",
     "fake-indexeddb": "^6.2.4",
     "prettier": "^3.9.10",
     "typescript": "~5.9.3",

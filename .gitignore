@@ -14,3 +14,7 @@ public/engine/
 *.tar
 *.tar.gz
 deploy/*.env
+repository/**
+!repository/README.md
+repository-data/
+dist-repository/

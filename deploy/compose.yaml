@@ -22,3 +22,34 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
+    networks: [default, repository]
+    depends_on:
+      repository:
+        condition: service_healthy
+  repository:
+    image: ${APP_IMAGE:?Set APP_IMAGE}-repository
+    pull_policy: never
+    restart: unless-stopped
+    labels:
+      io.java-retro.app: retro-java-emulator-pwa
+    volumes:
+      - repository-data:/data
+    networks: [repository]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 100
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+networks:
+  repository:
+    internal: true
+volumes:
+  repository-data:

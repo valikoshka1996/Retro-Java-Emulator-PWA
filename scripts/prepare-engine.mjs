@@ -10,7 +10,7 @@ let main = (
   await readFile("vendor/freej2me-web/web/src/main.js", "utf8")
 ).replaceAll("\r\n", "\n");
 main =
-  'import { bridge } from "../bridge.js";\nimport { loadRuntimeLibraries } from "../runtime.js";\n' +
+  'import { bridge } from "../bridge.js";\nimport { loadRuntimeLibraries } from "../runtime.js";\nimport { installOfflineRuntimeCache } from "../offline.js";\n' +
   main;
 main = main.replace(
   "const isDown = e.type",
@@ -59,12 +59,17 @@ main = main.replace("console.log('queuin event');", "");
 // Keep a fractional fallback if a small mobile viewport cannot fit one native pixel scale.
 main = main.replace("scale = scale|0;", "scale = Math.floor(scale) || scale;");
 main = main.replace(
+  "    const lib = await loadRuntimeLibraries",
+  "    await installOfflineRuntimeCache(message => bridge.error(message));\n    const lib = await loadRuntimeLibraries",
+);
+main = main.replace(
   "setTimeout(() => display.focus(), 10);",
   "// Parent UI retains keyboard focus when opening controls or dialogs.",
 );
 await writeFile("public/engine/src/main.js", main);
 await cp("engine/bridge.js", "public/engine/bridge.js");
 await cp("engine/runtime.js", "public/engine/runtime.js");
+await cp("engine/offline.js", "public/engine/offline.js");
 await cp("engine/player.html", "public/engine/player.html");
 const result = spawnSync(process.execPath, ["scripts/build-java.mjs"], {
   stdio: "inherit",

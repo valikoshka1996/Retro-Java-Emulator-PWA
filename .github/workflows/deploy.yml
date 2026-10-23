@@ -37,6 +37,7 @@ jobs:
       - run: npm run engine:prepare
       - run: npm test
       - run: npm run build
+      - run: npm run repository:build
       - name: Pull ready-made Playwright browsers and system dependencies
         timeout-minutes: 5
         run: docker pull mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
@@ -55,6 +56,8 @@ jobs:
           APP_IMAGE=retro-java-emulator-pwa:${{ github.sha }} docker compose -f deploy/compose.yaml config -q
       - name: Build deployment image
         run: docker build --build-arg VCS_REF="$GITHUB_SHA" --tag "retro-java-emulator-pwa:$GITHUB_SHA" .
+      - name: Build private repository image
+        run: docker build -f Dockerfile.repository --build-arg VCS_REF="$GITHUB_SHA" --tag "retro-java-emulator-pwa:$GITHUB_SHA-repository" .
       - name: Test production Docker image
         env:
           APP_IMAGE: retro-java-emulator-pwa:${{ github.sha }}
@@ -62,7 +65,7 @@ jobs:
         run: bash deploy/smoke-test.sh
       - name: Export deployment image
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        run: docker save "retro-java-emulator-pwa:$GITHUB_SHA" | gzip -1 > "$RUNNER_TEMP/image.tar.gz"
+        run: docker save "retro-java-emulator-pwa:$GITHUB_SHA" "retro-java-emulator-pwa:$GITHUB_SHA-repository" | gzip -1 > "$RUNNER_TEMP/image.tar.gz"
       - name: Deploy only this application over SSH
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
@@ -81,4 +84,6 @@ jobs:
           path: |
             test-results/**/*.png
             test-results/**/error-context.md
+            test-results/**/runtime-console.json
+            test-results/**/runtime-page.txt
           retention-days: 7

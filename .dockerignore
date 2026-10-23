@@ -13,3 +13,6 @@ playwright-report
 *.key
 public/engine
 docs
+repository
+repository-data
+dist-repository
