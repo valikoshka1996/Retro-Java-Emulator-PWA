@@ -6,6 +6,8 @@ interface InstallPrompt extends Event {
 }
 interface PwaState {
   installed: boolean;
+  knownInstalled: boolean;
+  installDismissedUntil: number;
   online: boolean;
   ready: boolean;
   updateReady: boolean;
@@ -15,9 +17,40 @@ interface PwaState {
 }
 const standalone = () =>
   matchMedia("(display-mode: standalone)").matches ||
+  matchMedia("(display-mode: window-controls-overlay)").matches ||
   !!(navigator as Navigator & { standalone?: boolean }).standalone;
+const installKey = "retro-pwa-install";
+function readInstallPreference(): { knownInstalled?: boolean; until?: number } {
+  try {
+    return JSON.parse(localStorage.getItem(installKey) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+function saveInstallPreference(knownInstalled: boolean, until: number) {
+  usePwa.setState({ knownInstalled, installDismissedUntil: until });
+  try {
+    localStorage.setItem(installKey, JSON.stringify({ knownInstalled, until }));
+  } catch {
+    // The current session still remembers the choice when storage is blocked.
+  }
+}
+export const isAppleMobile = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+export function dismissInstallOffer() {
+  saveInstallPreference(
+    usePwa.getState().knownInstalled,
+    Date.now() + 7 * 86400000,
+  );
+}
+export function rememberInstalled() {
+  saveInstallPreference(true, 0);
+}
 export const usePwa = create<PwaState>(() => ({
   installed: standalone(),
+  knownInstalled: !!readInstallPreference().knownInstalled,
+  installDismissedUntil: Number(readInstallPreference().until) || 0,
   online: navigator.onLine,
   ready: false,
   updateReady: false,
@@ -27,18 +60,25 @@ let started = false;
 export function startPwa() {
   if (started) return;
   started = true;
+  if (standalone()) rememberInstalled();
   window.addEventListener("online", () => usePwa.setState({ online: true }));
   window.addEventListener("offline", () => usePwa.setState({ online: false }));
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     usePwa.setState({ prompt: event as InstallPrompt });
   });
-  window.addEventListener("appinstalled", () =>
-    usePwa.setState({ installed: true, prompt: undefined }),
-  );
-  matchMedia("(display-mode: standalone)").addEventListener("change", () =>
-    usePwa.setState({ installed: standalone() }),
-  );
+  window.addEventListener("appinstalled", () => {
+    rememberInstalled();
+    usePwa.setState({ installed: true, prompt: undefined });
+  });
+  for (const mode of ["standalone", "window-controls-overlay"]) {
+    matchMedia(`(display-mode: ${mode})`).addEventListener("change", () => {
+      if (standalone()) {
+        rememberInstalled();
+        usePwa.setState({ installed: true, prompt: undefined });
+      }
+    });
+  }
   // Development remains uncached. Test and install the production build.
   if (
     !import.meta.env.PROD ||
@@ -80,7 +120,8 @@ export async function installPwa() {
   if (!prompt) return;
   try {
     await prompt.prompt();
-    await prompt.userChoice;
+    const choice = await prompt.userChoice;
+    if (choice.outcome === "dismissed") dismissInstallOffer();
   } finally {
     usePwa.setState({ prompt: undefined });
   }

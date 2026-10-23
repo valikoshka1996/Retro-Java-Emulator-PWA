@@ -2290,6 +2290,16 @@ dd {
   color: #f1c0c7;
   font-size: 11px;
 }
+.pwa-notice { max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 100px); overflow-y:auto; overscroll-behavior:contain; }
+.pwa-install-offer + .pwa-error { margin-top:12px; }
+.pwa-install-steps { font-size:12px; line-height:1.7; color:#b6c6c0; margin-top:14px; }
+.pwa-install-steps ol { margin:0; padding-left:22px; }
+.pwa-install-steps li + li { margin-top:10px; }
+.pwa-install-steps svg { display:inline-block; vertical-align:middle; color:var(--accent); }
+.pwa-install-steps p { margin:14px 0 0; }
+.pwa-already-installed { margin-top:12px; min-height:44px; }
+.pwa-install-offer .pwa-dismiss { min-width:44px; min-height:44px; justify-content:center; }
+.pwa-install-offer .primary { min-height:44px; }
 @media (max-width: 560px) {
   .pwa-notice {
     right: 12px;

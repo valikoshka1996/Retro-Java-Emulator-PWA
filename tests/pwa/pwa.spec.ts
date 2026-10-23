@@ -298,6 +298,21 @@ test("встановлення обробляє відмову користув�
   await expect(
     page.getByRole("button", { name: "Встановити", exact: true }),
   ).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem("retro-pwa-install")!).knownInstalled,
+    ),
+  ).toBe(false);
+  await page.reload();
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new Event("beforeinstallprompt", { cancelable: true }),
+    ),
+  );
+  await expect(
+    page.getByRole("button", { name: "Встановити", exact: true }),
+  ).toHaveCount(0);
 });
 
 test("оновлення очікує зупинки рушія й зберігає бібліотеку", async ({

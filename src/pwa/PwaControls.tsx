@@ -1,15 +1,63 @@
-import { useState } from "react";
-import { Download, RefreshCw, WifiOff, X, Check } from "lucide-react";
-import { applyPwaUpdate, installPwa, usePwa } from "./client";
+import { useEffect, useState } from "react";
+import { Download, RefreshCw, WifiOff, X, Check, Share } from "lucide-react";
+import {
+  applyPwaUpdate,
+  installPwa,
+  usePwa,
+  isAppleMobile,
+  dismissInstallOffer,
+  rememberInstalled,
+} from "./client";
 import { useOffline } from "../offline";
 
+function AppleInstallSteps() {
+  return (
+    <div className="pwa-install-steps">
+      <ol>
+        <li>
+          У Safari натисніть <Share size={16} aria-hidden="true" />{" "}
+          <strong>«Поділитися»</strong> (або відкрийте її через меню сторінки).
+        </li>
+        <li>
+          Виберіть <strong>«На початковий екран»</strong>. Якщо пункту немає,
+          знайдіть його в «Редагувати дії».
+        </li>
+        <li>
+          Якщо є перемикач <strong>«Відкривати як вебзастосунок»</strong>,
+          увімкніть його та натисніть <strong>«Додати»</strong>.
+        </li>
+      </ol>
+      <p>
+        Потім відкривайте Java Retro з іконки. Для гри без інтернету окремо
+        підготуйте офлайн-пакет у налаштуваннях.
+      </p>
+    </div>
+  );
+}
 export function PwaControls() {
-  const { prompt, installed, online, updateReady } = usePwa();
+  const {
+    prompt,
+    installed,
+    online,
+    updateReady,
+    knownInstalled,
+    installDismissedUntil,
+  } = usePwa();
   const offline = useOffline();
-  const [hideInstall, setHideInstall] = useState(false),
+  const [appleReady, setAppleReady] = useState(false),
+    [showSteps, setShowSteps] = useState(false),
     [hideUpdate, setHideUpdate] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  useEffect(() => {
+    if (!isAppleMobile()) return;
+    const timer = setTimeout(() => setAppleReady(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
+  const offerInstall =
+    !installed &&
+    installDismissedUntil <= Date.now() &&
+    (!!prompt || (appleReady && !knownInstalled));
   const action = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError("");
@@ -21,12 +69,7 @@ export function PwaControls() {
       setBusy(false);
     }
   };
-  if (
-    online &&
-    (!prompt || installed || hideInstall) &&
-    (!updateReady || hideUpdate) &&
-    !error
-  )
+  if (online && !offerInstall && (!updateReady || hideUpdate) && !error)
     return null;
   return (
     <aside className="pwa-notice" aria-label="Встановлення та стан застосунку">
@@ -66,29 +109,44 @@ export function PwaControls() {
           </button>
         </div>
       ) : (
-        prompt &&
-        !installed &&
-        !hideInstall && (
-          <div className="pwa-notice-row">
-            <Download size={18} />
-            <p>
-              <strong>Java Retro як застосунок</strong>
-              <span>Власна іконка та окреме вікно на вашому пристрої.</span>
-            </p>
-            <button
-              className="primary"
-              disabled={busy}
-              onClick={() => void action(installPwa)}
-            >
-              Встановити
-            </button>
-            <button
-              className="pwa-dismiss"
-              aria-label="Встановити пізніше"
-              onClick={() => setHideInstall(true)}
-            >
-              <X size={16} />
-            </button>
+        offerInstall && (
+          <div className="pwa-install-offer">
+            <div className="pwa-notice-row">
+              <Download size={18} />
+              <p>
+                <strong>Java Retro як застосунок</strong>
+                <span>Власна іконка та окреме вікно на вашому пристрої.</span>
+              </p>
+              <button
+                className="primary"
+                disabled={busy}
+                aria-expanded={!prompt ? showSteps : undefined}
+                aria-controls={!prompt ? "pwa-apple-install-steps" : undefined}
+                onClick={() =>
+                  prompt ? void action(installPwa) : setShowSteps(!showSteps)
+                }
+              >
+                {prompt ? "Встановити" : "Як встановити"}
+              </button>
+              <button
+                className="pwa-dismiss"
+                aria-label="Встановити пізніше"
+                onClick={dismissInstallOffer}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            {!prompt && showSteps && (
+              <div id="pwa-apple-install-steps">
+                <AppleInstallSteps />
+                <button
+                  className="secondary pwa-already-installed"
+                  onClick={rememberInstalled}
+                >
+                  Уже встановлено
+                </button>
+              </div>
+            )}
           </div>
         )
       )}
@@ -117,9 +175,10 @@ export function PwaSettings() {
       <h3>Встановлення застосунку</h3>
       <p className="muted">
         {installed
-          ? "Java Retro встановлено на цьому пристрої."
+          ? "Java Retro запущено як встановлений застосунок."
           : "У Chrome або Edge виберіть «Встановити застосунок» у меню браузера. На iPhone / iPad: Safari → Поділитися → На початковий екран."}
       </p>
+      {!installed && isAppleMobile() && <AppleInstallSteps />}
       <div className="button-row">
         {prompt && !installed && (
           <button className="secondary" onClick={() => void action(installPwa)}>
