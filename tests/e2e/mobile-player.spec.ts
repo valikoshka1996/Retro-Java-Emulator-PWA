@@ -172,12 +172,23 @@ test("iPhone без Fullscreen API: повний екран, поворот, н�
       ),
     )
     .toEqual(["up"]);
-  await frame.evaluate(()=>(window as any).keys=[]);
-  await page.evaluate(()=>{document.body.tabIndex=-1;document.body.focus();});
-  await page.keyboard.down('ArrowLeft');
-  await page.getByLabel('Режим керування').focus();
-  await page.keyboard.up('ArrowLeft');
-  await expect.poll(()=>frame.evaluate(()=>(window as any).keys.filter((k:any)=>k.source==='keyboard:ArrowLeft').map((k:any)=>k.down))).toEqual([true,false]);
+  await frame.evaluate(() => ((window as any).keys = []));
+  await page.evaluate(() => {
+    document.body.tabIndex = -1;
+    document.body.focus();
+  });
+  await page.keyboard.down("ArrowLeft");
+  await page.getByLabel("Режим керування").focus();
+  await page.keyboard.up("ArrowLeft");
+  await expect
+    .poll(() =>
+      frame.evaluate(() =>
+        (window as any).keys
+          .filter((k: any) => k.source === "keyboard:ArrowLeft")
+          .map((k: any) => k.down),
+      ),
+    )
+    .toEqual([true, false]);
   await page.getByRole("button", { name: "Клавіатура", exact: true }).click();
   await page
     .getByRole("button", { name: "Великі кнопки", exact: true })
@@ -215,11 +226,13 @@ test("iPhone без Fullscreen API: повний екран, поворот, н�
   await expect(page.locator(".sidebar")).toBeVisible();
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
   await page.getByLabel("Режим керування").selectOption("touch");
+  await page.getByLabel("Поворот екрана гри").selectOption("90");
   await expect(page.locator(".phone-keypad")).toHaveCount(0);
   await page.reload();
   await page.getByRole("button", { name: "Відкрити RMS Probe" }).click();
   await page.getByRole("button", { name: "Грати", exact: true }).click();
   await expect(page.getByLabel("Режим керування")).toHaveValue("touch");
+  await expect(page.getByLabel("Поворот екрана гри")).toHaveValue("90");
   await expect(page.locator(".phone-keypad")).toHaveCount(0);
   await page.getByLabel("Режим керування").selectOption("both");
   await expect(page.locator(".phone-keypad.theme-mint")).toBeVisible();

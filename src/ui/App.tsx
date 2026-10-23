@@ -57,6 +57,8 @@ import type {
   Action,
   Profile,
   InputMode,
+  DisplayRotation,
+  DisplayGeometry,
 } from "../types";
 import { PhoneKeypad, TouchControlsEditor } from "./PhoneKeypad";
 import { normalizeTouchControls } from "../touch";
@@ -1663,6 +1665,14 @@ function Player({
     game.configuration.inputMode || "both",
   );
   const [modeSaving, setModeSaving] = useState(false);
+  const [rotation, setRotation] = useState<DisplayRotation>(
+    game.configuration.displayRotation || 0,
+  );
+  const [geometry, setGeometry] = useState<DisplayGeometry>({
+    width: game.configuration.width,
+    height: game.configuration.height,
+    rotation: 0,
+  });
   const [saveFeedback, setSaveFeedback] = useState<SaveFeedback>({
     state: "pending",
   });
@@ -1681,6 +1691,7 @@ function Player({
           setWorking(false);
         },
         setSaveFeedback,
+        setGeometry,
       ),
   );
   const launch = async () => {
@@ -1835,6 +1846,43 @@ function Player({
       </select>
     </label>
   );
+  const rotationSelector = (
+    <label className="player-input-mode">
+      Поворот
+      <select
+        aria-label="Поворот екрана гри"
+        value={rotation}
+        disabled={working || modeSaving}
+        onChange={(e) => {
+          const next = +e.target.value as DisplayRotation;
+          void run(async () => {
+            setModeSaving(true);
+            try {
+              await db.transaction("rw", db.games, async () => {
+                const current = await db.games.get(game.id);
+                if (!current) throw Error("Гру не знайдено.");
+                const configuration = {
+                  ...current.configuration,
+                  displayRotation: next,
+                };
+                validateConfiguration(configuration);
+                await db.games.update(game.id, { configuration });
+              });
+              adapter.setDisplayRotation(next);
+              setRotation(next);
+            } finally {
+              setModeSaving(false);
+            }
+          });
+        }}
+      >
+        <option value={0}>За грою (0°)</option>
+        <option value={90}>Вправо 90°</option>
+        <option value={180}>180°</option>
+        <option value={270}>Вліво 90°</option>
+      </select>
+    </label>
+  );
   return (
     <div
       ref={surface}
@@ -1848,6 +1896,7 @@ function Player({
       {fullscreen.active && (
         <div className="immersive-toolbar">
           {inputSelector}
+          {rotationSelector}
           <button className="secondary" onClick={() => void fullscreen.leave()}>
             <ChevronLeft size={16} />
             Вийти
@@ -1892,6 +1941,7 @@ function Player({
       </div>
       <div className="player-toolbar">
         {!fullscreen.active && inputSelector}
+        {!fullscreen.active && rotationSelector}
         <button
           className="secondary"
           disabled={running || working}
@@ -1979,8 +2029,7 @@ function Player({
             ref={host}
             className="emulator-host"
             style={{
-              aspectRatio:
-                game.configuration.width + "/" + game.configuration.height,
+              aspectRatio: geometry.width + "/" + geometry.height,
             }}
           />
           {!running && !working && (

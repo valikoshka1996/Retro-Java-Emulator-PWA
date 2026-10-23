@@ -16,6 +16,14 @@ main = main.replace(
   "const isDown = e.type",
   "if (bridge.keyboard(e)) return;\n        const isDown = e.type",
 );
+const scaleStart = main.indexOf("function autoscale() {");
+const scaleEnd = main.indexOf("function setListeners()", scaleStart);
+if (scaleStart < 0 || scaleEnd < 0)
+  throw Error("Upstream display scaler changed; review integration.");
+main =
+  main.slice(0, scaleStart) +
+  "function autoscale() { if(scaleSet) bridge.resize(!fractionScale); }\n\n" +
+  main.slice(scaleEnd);
 const launchStart = main.indexOf("    let args;");
 const launchEnd = main.indexOf("    FreeJ2ME.main(args)", launchStart);
 if (launchStart < 0 || launchEnd < 0)
@@ -81,6 +89,7 @@ await cp("engine/bridge.js", "public/engine/bridge.js");
 await cp("engine/runtime.js", "public/engine/runtime.js");
 await cp("engine/offline.js", "public/engine/offline.js");
 await cp("engine/input.js", "public/engine/input.js");
+await cp("engine/display.js", "public/engine/display.js");
 await cp("engine/player.html", "public/engine/player.html");
 const result = spawnSync(process.execPath, ["scripts/build-java.mjs"], {
   stdio: "inherit",

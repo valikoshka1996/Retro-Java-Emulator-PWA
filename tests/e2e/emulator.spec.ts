@@ -58,6 +58,18 @@ test("реальний MIDlet: RMS → стоп → закрити браузе�
     })
     .toBeGreaterThan(0.001);
   await page.setViewportSize({ width: 390, height: 844 });
+  // Exercise the iPhone/PWA viewport fallback: desktop Chromium refuses window
+  // resizing while its native fullscreen window is active.
+  await page.evaluate(() => {
+    Object.defineProperty(Element.prototype, "requestFullscreen", {
+      value: undefined,
+      configurable: true,
+    });
+    Object.defineProperty(Element.prototype, "webkitRequestFullscreen", {
+      value: undefined,
+      configurable: true,
+    });
+  });
   await page
     .getByRole("button", { name: "На весь екран", exact: true })
     .click();
@@ -71,7 +83,40 @@ test("реальний MIDlet: RMS → стоп → закрити браузе�
   await page.screenshot({
     path: testInfo.outputPath("real-mobile-fullscreen.png"),
   });
+  await page.getByLabel("Поворот екрана гри").selectOption("90");
+  await expect(frame.locator("#display")).toHaveAttribute(
+    "data-rotation",
+    "90",
+  );
+  expect(page.frames()).toContain(vmFrame);
+  for (const viewport of [
+    { width: 844, height: 390 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect
+      .poll(async () => {
+        const canvas = await frame.locator("#display").boundingBox(),
+          host = await page.locator(".emulator-host").boundingBox();
+        return (
+          !!canvas &&
+          !!host &&
+          canvas.x >= host.x - 1 &&
+          canvas.y >= host.y - 1 &&
+          canvas.x + canvas.width <= host.x + host.width + 1 &&
+          canvas.y + canvas.height <= host.y + host.height + 1
+        );
+      })
+      .toBe(true);
+  }
+  await page.screenshot({ path: testInfo.outputPath("real-rotated-game.png") });
   await page.getByRole("button", { name: "Вийти", exact: true }).click();
+  const shot = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Скріншот", exact: true }).click();
+  const png = await (
+    await import("node:fs/promises")
+  ).readFile((await (await shot).path())!);
+  expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([320, 240]);
   await page.getByRole("button", { name: "Збереження", exact: true }).click();
   await page.getByLabel("Назва резервної копії").fill("Before restart");
   await page.getByRole("button", { name: /Створити слот/ }).click();
@@ -111,6 +156,11 @@ test("реальний MIDlet: RMS → стоп → закрити браузе�
       intervals: [1000],
     })
     .toBe(true);
+  await expect(page.getByLabel("Поворот екрана гри")).toHaveValue("90");
+  await expect(page.frameLocator("iframe").locator("#display")).toHaveAttribute(
+    "data-rotation",
+    "90",
+  );
   await page.screenshot({
     path: testInfo.outputPath("rms-restored.png"),
     fullPage: true,

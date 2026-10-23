@@ -5,24 +5,22 @@ export function attachPointerInput(canvas, queue, enabled) {
     last = { x: 0, y: 0 };
   const point = (event) => {
     const rect = canvas.getBoundingClientRect();
+    const u = (event.clientX - rect.left) / (rect.width || 1),
+      v = (event.clientY - rect.top) / (rect.height || 1);
+    const rotation = Number(canvas.dataset.rotation) || 0;
+    const [x, y] =
+      rotation === 90
+        ? [v, 1 - u]
+        : rotation === 180
+          ? [1 - u, 1 - v]
+          : rotation === 270
+            ? [1 - v, u]
+            : [u, v];
     return {
-      x: Math.max(
-        0,
-        Math.min(
-          canvas.width - 1,
-          Math.floor(
-            ((event.clientX - rect.left) * canvas.width) / (rect.width || 1),
-          ),
-        ),
-      ),
+      x: Math.max(0, Math.min(canvas.width - 1, Math.floor(x * canvas.width))),
       y: Math.max(
         0,
-        Math.min(
-          canvas.height - 1,
-          Math.floor(
-            ((event.clientY - rect.top) * canvas.height) / (rect.height || 1),
-          ),
-        ),
+        Math.min(canvas.height - 1, Math.floor(y * canvas.height)),
       ),
     };
   };

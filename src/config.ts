@@ -89,6 +89,11 @@ export const defaultConfiguration = (): EmulatorConfiguration => ({
 });
 export function validateConfiguration(c: EmulatorConfiguration) {
   if (
+    c.displayRotation !== undefined &&
+    ![0, 90, 180, 270].includes(c.displayRotation)
+  )
+    throw Error("Непідтримуваний поворот екрана.");
+  if (
     c.inputMode !== undefined &&
     !["both", "keypad", "touch"].includes(c.inputMode)
   )

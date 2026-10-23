@@ -55,6 +55,13 @@ it("режими керування: старі профілі та валіда
   expect(() =>
     validateConfiguration({ ...c, inputMode: "bad" as any }),
   ).toThrow("режим");
+  for (const displayRotation of [0, 90, 180, 270] as const)
+    expect(() =>
+      validateConfiguration({ ...c, displayRotation }),
+    ).not.toThrow();
+  expect(() =>
+    validateConfiguration({ ...c, displayRotation: 45 as any }),
+  ).toThrow("поворот");
 });
 function database() {
   const d = new RetroDB("test-" + crypto.randomUUID());

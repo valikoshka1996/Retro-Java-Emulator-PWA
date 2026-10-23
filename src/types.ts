@@ -28,6 +28,12 @@ export type Action =
   | "hash";
 export type KeyboardMapping = Record<Action, string>;
 export type InputMode = "both" | "keypad" | "touch";
+export type DisplayRotation = 0 | 90 | 180 | 270;
+export interface DisplayGeometry {
+  width: number;
+  height: number;
+  rotation: DisplayRotation;
+}
 export interface TouchControlsConfiguration {
   theme: "graphite" | "mint" | "violet" | "light";
   width: number;
@@ -53,6 +59,7 @@ export interface EmulatorConfiguration {
   keys: KeyboardMapping;
   touchControls?: TouchControlsConfiguration;
   inputMode?: InputMode;
+  displayRotation?: DisplayRotation;
 }
 export interface GameMetadata {
   name: string;

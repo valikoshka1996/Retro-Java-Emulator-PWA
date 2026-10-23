@@ -4,12 +4,14 @@ import type {
   EmulatorConfiguration,
   Game,
   InputMode,
+  DisplayRotation,
+  DisplayGeometry,
 } from "./types";
 import { db, putSave, validateRms } from "./db";
 import { validateConfiguration } from "./config";
 import { binaryBlob } from "./archive";
 import { isOfflinePrepared } from "./offline";
-import { hasWebGL2 } from './capabilities';
+import { hasWebGL2 } from "./capabilities";
 export interface EmulatorAdapter {
   installGame(game: Game): Promise<void>;
   launchGame(container: HTMLElement): Promise<void>;
@@ -53,6 +55,7 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
     private onError: (e: string) => void,
     private onExit: () => void,
     private onSave?: (feedback: SaveFeedback) => void,
+    private onDisplay?: (geometry: DisplayGeometry) => void,
   ) {}
   getCapabilities(): EmulatorCapabilities {
     return {
@@ -144,6 +147,18 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
         this.onStatus("Гра працює");
         this.readyResolve?.();
       }
+      if (
+        kind === "display" &&
+        payload &&
+        Number.isInteger(payload.width) &&
+        Number.isInteger(payload.height) &&
+        payload.width >= 1 &&
+        payload.width <= 4096 &&
+        payload.height >= 1 &&
+        payload.height <= 4096 &&
+        [0, 90, 180, 270].includes(payload.rotation)
+      )
+        this.onDisplay?.(payload);
       if (kind === "error") {
         this.onSave?.({ state: "failed" });
         this.readyReject?.(Error(payload));
@@ -302,6 +317,18 @@ export class FreeJ2MEAdapter implements EmulatorAdapter {
         configuration: { ...this.game.configuration, inputMode: mode },
       };
     this.send("inputMode", { mode });
+  }
+  setDisplayRotation(rotation: DisplayRotation) {
+    this.releaseKeys();
+    if (this.game)
+      this.game = {
+        ...this.game,
+        configuration: {
+          ...this.game.configuration,
+          displayRotation: rotation,
+        },
+      };
+    this.send("rotation", { rotation });
   }
   releaseKeys() {
     this.send("release");

@@ -1,5 +1,6 @@
 import { codeMap } from "./src/key.js";
 import { attachPointerInput } from "./input.js";
+import { createDisplayLayout } from "./display.js";
 const token = new URLSearchParams(location.search).get("token");
 function emit(kind, payload) {
   parent.postMessage({ retro: true, token, kind, payload }, location.origin);
@@ -12,7 +13,8 @@ let helper,
   config,
   ready = false,
   stopping = false,
-  releasePointer = () => {};
+  releasePointer = () => {},
+  layout;
 const held = new Map();
 const repeats = new Map();
 const actionCodes = {
@@ -94,6 +96,9 @@ function snapshot() {
 export const bridge = {
   appId: "",
   integerScale: true,
+  resize(integerScale) {
+    layout?.update({ integerScale, rotation: config?.displayRotation || 0 });
+  },
   stage(message) {
     document.getElementById("loading").textContent = message;
     emit("stage", message);
@@ -101,6 +106,9 @@ export const bridge = {
   attach(canvas, q) {
     display = canvas;
     queue = q;
+    layout = createDisplayLayout(canvas, (geometry) =>
+      emit("display", geometry),
+    );
     releasePointer = attachPointerInput(
       canvas,
       q,
@@ -208,6 +216,13 @@ window.addEventListener("message", async (e) => {
     } else if (method === "release") {
       release();
       return;
+    } else if (method === "rotation") {
+      if (![0, 90, 180, 270].includes(payload?.rotation))
+        throw Error("Invalid display rotation");
+      release();
+      config.displayRotation = payload.rotation;
+      layout?.update({ rotation: payload.rotation });
+      return;
     } else if (method === "inputMode") {
       if (!["both", "keypad", "touch"].includes(payload?.mode))
         throw Error("Invalid input mode");
@@ -223,8 +238,20 @@ window.addEventListener("message", async (e) => {
       await helper.destroy();
       result = await snapshot();
     } else if (method === "screenshot") {
+      let image = display;
+      const rotation = config?.displayRotation || 0;
+      if (rotation) {
+        image = document.createElement("canvas");
+        image.width = rotation % 180 ? display.height : display.width;
+        image.height = rotation % 180 ? display.width : display.height;
+        const context = image.getContext("2d");
+        if (!context) throw Error("PNG capture unavailable");
+        context.translate(image.width / 2, image.height / 2);
+        context.rotate((rotation * Math.PI) / 180);
+        context.drawImage(display, -display.width / 2, -display.height / 2);
+      }
       result = await new Promise((resolve, reject) =>
-        display.toBlob(
+        image.toBlob(
           (b) => (b ? resolve(b) : reject(Error("PNG capture failed"))),
           "image/png",
         ),
