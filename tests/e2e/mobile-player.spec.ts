@@ -22,9 +22,9 @@ async function openPlayer(page: Page, api: "missing" | "denied" | "native") {
     route.fulfill({
       contentType: "text/html",
       body: `<!doctype html><body style="margin:0;background:#132a25;color:#80efca;display:grid;place-items:center;height:100vh;font-family:monospace"><div>RMS Probe<br>240 × 320</div><script>
-    const token=new URLSearchParams(location.search).get('token'); window.keys=[];
+    const token=new URLSearchParams(location.search).get('token'); window.keys=[];window.releases=0;
     const emit=(kind,payload)=>parent.postMessage({retro:true,token,kind,payload},location.origin);
-    addEventListener('message',e=>{ if(e.data.method==='key') keys.push(e.data.payload); });
+    addEventListener('message',e=>{ if(e.data.method==='key') keys.push(e.data.payload);if(e.data.method==='release')releases++; });
     emit('ready');
     </script></body>`,
     }),
@@ -137,6 +137,47 @@ test("iPhone без Fullscreen API: повний екран, поворот, н�
       ),
     )
     .toEqual(expect.arrayContaining(["fire", "up"]));
+  await page.getByLabel("Режим керування").focus();
+  await frame.evaluate(() => {
+    (window as any).keys = [];
+    (window as any).releases = 0;
+  });
+  await session.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [points[0]],
+  });
+  // Canvas.focus() inside the engine must not release a different finger on
+  // the parent keypad. The app remains focused when its iframe gains focus.
+  await frame.evaluate(() => {
+    document.body.tabIndex = -1;
+    document.body.focus();
+  });
+  await page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+  expect(await frame.evaluate(() => (window as any).releases)).toBe(0);
+  expect(
+    await frame.evaluate(() =>
+      (window as any).keys.filter((k: any) => !k.down),
+    ),
+  ).toEqual([]);
+  await session.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await expect
+    .poll(() =>
+      frame.evaluate(() =>
+        (window as any).keys
+          .filter((k: any) => !k.down)
+          .map((k: any) => k.action),
+      ),
+    )
+    .toEqual(["up"]);
+  await frame.evaluate(()=>(window as any).keys=[]);
+  await page.evaluate(()=>{document.body.tabIndex=-1;document.body.focus();});
+  await page.keyboard.down('ArrowLeft');
+  await page.getByLabel('Режим керування').focus();
+  await page.keyboard.up('ArrowLeft');
+  await expect.poll(()=>frame.evaluate(()=>(window as any).keys.filter((k:any)=>k.source==='keyboard:ArrowLeft').map((k:any)=>k.down))).toEqual([true,false]);
   await page.getByRole("button", { name: "Клавіатура", exact: true }).click();
   await page
     .getByRole("button", { name: "Великі кнопки", exact: true })

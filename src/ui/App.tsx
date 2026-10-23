@@ -1730,7 +1730,13 @@ function Player({
       physicalHeld.clear();
       adapter.releaseKeys();
     };
-    window.addEventListener("blur", release);
+    const releaseOnBlur = () =>
+      queueMicrotask(() => {
+        // Focusing the same-origin game iframe blurs this window, but the app
+        // still has focus. Keep other fingers held on the parent keypad.
+        if (!document.hasFocus()) release();
+      });
+    window.addEventListener("blur", releaseOnBlur);
     document.addEventListener("visibilitychange", release);
     let frame = 0;
     let held = new Set<string>();
@@ -1777,7 +1783,7 @@ function Player({
     return () => {
       window.removeEventListener("keydown", key);
       window.removeEventListener("keyup", key);
-      window.removeEventListener("blur", release);
+      window.removeEventListener("blur", releaseOnBlur);
       document.removeEventListener("visibilitychange", release);
       cancelAnimationFrame(frame);
       release();
