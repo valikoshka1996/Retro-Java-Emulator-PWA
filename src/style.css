@@ -3018,6 +3018,23 @@ body.game-immersive .pwa-notice {
 .player-page.touch-only .player-layout { grid-template-columns:minmax(0,1fr); }
 .is-immersive.touch-only .player-layout { grid-template-rows:minmax(0,1fr); }
 .immersive-toolbar { flex-wrap:wrap; }
+.player-page.is-immersive {
+ --immersive-safe-top:env(safe-area-inset-top,0px);
+ --immersive-safe-bottom:env(safe-area-inset-bottom,0px);
+ padding-top:calc(var(--immersive-safe-top) + 6px);
+ padding-bottom:calc(var(--immersive-safe-bottom) + 6px);
+}
+.is-immersive .immersive-toolbar { display:grid; grid-template-columns:44px minmax(0,1fr) auto auto; gap:6px; align-items:center; min-height:44px; }
+.is-immersive .immersive-toolbar .secondary { min-height:44px; padding:8px 11px; font-size:12px; white-space:nowrap; }
+.is-immersive .immersive-toolbar .immersive-back { width:44px; padding:0; }
+.immersive-title { font-size:13px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; color:#b9c7d1; }
+.player-menu { width:min(420px,calc(100vw - 24px)); max-height:calc(100dvh - var(--immersive-safe-top,env(safe-area-inset-top,0px)) - var(--immersive-safe-bottom,env(safe-area-inset-bottom,0px)) - 24px); }
+.player-menu-settings { padding:20px 22px 4px; display:grid; gap:18px; }
+.player-menu .player-input-mode { display:grid; gap:8px; font-size:13px; }
+.player-menu .player-input-mode select { width:100%; max-width:none; min-height:46px; font-size:16px; padding:11px; }
+.player-menu-actions { padding:18px 22px 22px; display:grid; gap:10px; }
+.player-menu-actions button { justify-content:flex-start; min-height:48px; padding:12px 16px; }
+.player-menu-actions .primary { justify-content:center; margin-top:5px; }
 .immersive-toolbar .player-input-mode { font-size:0; }
 .immersive-toolbar .player-input-mode select { font-size:11px; padding:6px; min-height:32px; max-width:140px; }
 @media(max-width:600px) {

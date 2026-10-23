@@ -137,7 +137,7 @@ test("iPhone без Fullscreen API: повний екран, поворот, н�
       ),
     )
     .toEqual(expect.arrayContaining(["fire", "up"]));
-  await page.getByLabel("Режим керування").focus();
+  await page.getByRole("button", { name: "Меню гри", exact: true }).focus();
   await frame.evaluate(() => {
     (window as any).keys = [];
     (window as any).releases = 0;
@@ -178,7 +178,7 @@ test("iPhone без Fullscreen API: повний екран, поворот, н�
     document.body.focus();
   });
   await page.keyboard.down("ArrowLeft");
-  await page.getByLabel("Режим керування").focus();
+  await page.getByRole("button", { name: "Меню гри", exact: true }).focus();
   await page.keyboard.up("ArrowLeft");
   await expect
     .poll(() =>
@@ -189,6 +189,7 @@ test("iPhone без Fullscreen API: повний екран, поворот, н�
       ),
     )
     .toEqual([true, false]);
+  await page.getByRole("button", { name: "Меню гри", exact: true }).click();
   await page.getByRole("button", { name: "Клавіатура", exact: true }).click();
   await page
     .getByRole("button", { name: "Великі кнопки", exact: true })
@@ -239,6 +240,77 @@ test("iPhone без Fullscreen API: повний екран, поворот, н�
   expect(errors).toEqual([]);
 });
 
+test("компактна панель: довга назва, safe area iPhone та меню в portrait/landscape", async ({
+  page,
+}, info) => {
+  await openPlayer(page, "missing");
+  await page
+    .getByRole("button", { name: "На весь екран", exact: true })
+    .click();
+  for (const viewport of [
+    { width: 390, height: 844, top: 47, bottom: 34, side: 0 },
+    { width: 375, height: 667, top: 44, bottom: 34, side: 0 },
+    { width: 844, height: 390, top: 0, bottom: 21, side: 44 },
+  ]) {
+    await page.setViewportSize({
+      width: viewport.width,
+      height: viewport.height,
+    });
+    await page.locator(".player-page").evaluate((node, insets) => {
+      const element = node as HTMLElement;
+      element.style.setProperty("--immersive-safe-top", insets.top + "px");
+      element.style.setProperty(
+        "--immersive-safe-bottom",
+        insets.bottom + "px",
+      );
+      element.style.paddingLeft = insets.side + 8 + "px";
+      element.style.paddingRight = insets.side + 8 + "px";
+    }, viewport);
+    await page
+      .locator(".immersive-title")
+      .evaluate(
+        (node) =>
+          (node.textContent =
+            "Дуже довга назва гри — пригоди, перегони та історія"),
+      );
+    const toolbar = page.getByRole("toolbar", { name: "Панель гри" }),
+      rect = (await toolbar.boundingBox())!;
+    expect(rect.height).toBeLessThanOrEqual(46);
+    expect(rect.y).toBeGreaterThanOrEqual(viewport.top + 6);
+    for (const button of await toolbar.getByRole("button").all()) {
+      const b = (await button.boundingBox())!;
+      expect(b.height).toBeGreaterThanOrEqual(44);
+      expect(b.y).toBeGreaterThanOrEqual(rect.y);
+      expect(b.y + b.height).toBeLessThanOrEqual(rect.y + rect.height + 1);
+      expect(b.x).toBeGreaterThanOrEqual(viewport.side);
+      expect(b.x + b.width).toBeLessThanOrEqual(viewport.width - viewport.side);
+    }
+    await page.getByRole("button", { name: "Меню гри", exact: true }).click();
+    const menu = page.getByRole("dialog", { name: "Меню гри" });
+    await expect(menu).toBeVisible();
+    const m = (await menu.boundingBox())!;
+    expect(m.y).toBeGreaterThanOrEqual(viewport.top);
+    expect(m.y + m.height).toBeLessThanOrEqual(
+      viewport.height - viewport.bottom + 1,
+    );
+    await page.getByLabel("Поворот екрана гри").selectOption("270");
+    await page.screenshot({
+      path: info.outputPath(`menu-${viewport.width}.png`),
+    });
+    await page
+      .getByRole("button", { name: "Повернутися до гри", exact: true })
+      .click();
+    await expect(menu).toHaveCount(0);
+    await fits(page);
+  }
+  await page.getByRole("button", { name: "Меню гри", exact: true }).click();
+  await page.getByRole("button", { name: "Збереження", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Збереження гри" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Закрити", exact: true }).click();
+});
+
 for (const api of ["denied", "native"] as const)
   test(`fullscreen ${api}: вихід і доступ до клавіатури`, async ({ page }) => {
     if (api === "denied")
@@ -260,6 +332,7 @@ for (const api of ["denied", "native"] as const)
           ),
         ),
       ).toBe(true);
+    await page.getByRole("button", { name: "Меню гри", exact: true }).click();
     await page.getByRole("button", { name: "Клавіатура", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByRole("button", { name: "Закрити", exact: true }).click();

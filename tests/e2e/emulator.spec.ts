@@ -83,7 +83,11 @@ test("реальний MIDlet: RMS → стоп → закрити браузе�
   await page.screenshot({
     path: testInfo.outputPath("real-mobile-fullscreen.png"),
   });
+  await page.getByRole("button", { name: "Меню гри", exact: true }).click();
   await page.getByLabel("Поворот екрана гри").selectOption("90");
+  await page
+    .getByRole("button", { name: "Повернутися до гри", exact: true })
+    .click();
   await expect(frame.locator("#display")).toHaveAttribute(
     "data-rotation",
     "90",

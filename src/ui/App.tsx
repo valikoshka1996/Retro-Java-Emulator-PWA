@@ -29,6 +29,7 @@ import {
   Camera,
   Store,
   AlertCircle,
+  Menu,
 } from "lucide-react";
 import {
   db,
@@ -100,10 +101,12 @@ function Modal({
   title,
   close,
   children,
+  className,
 }: {
   title: string;
   close: () => void;
   children: React.ReactNode;
+  className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -112,6 +115,8 @@ function Modal({
   }, []);
   return (
     <dialog
+      className={className}
+      aria-label={title}
       ref={ref}
       onCancel={(e) => {
         e.preventDefault();
@@ -1661,6 +1666,10 @@ function Player({
     normalizeTouchControls(game.configuration.touchControls),
   );
   const [showControls, setShowControls] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  useEffect(() => {
+    if (!fullscreen.active) setShowMenu(false);
+  }, [fullscreen.active]);
   const [inputMode, setInputMode] = useState<InputMode>(
     game.configuration.inputMode || "both",
   );
@@ -1752,7 +1761,7 @@ function Player({
     let frame = 0;
     let held = new Set<string>();
     const poll = () => {
-      if (document.hidden || showControls || showSaves) {
+      if (document.hidden || showControls || showSaves || showMenu) {
         if (held.size) {
           adapter.releaseKeys();
           held.clear();
@@ -1799,7 +1808,14 @@ function Player({
       cancelAnimationFrame(frame);
       release();
     };
-  }, [running, adapter, game.configuration.keys, showControls, showSaves]);
+  }, [
+    running,
+    adapter,
+    game.configuration.keys,
+    showControls,
+    showSaves,
+    showMenu,
+  ]);
   const stop = async () => {
     setWorking(true);
     try {
@@ -1894,30 +1910,94 @@ function Player({
       data-fullscreen-mode={fullscreen.mode || "window"}
     >
       {fullscreen.active && (
-        <div className="immersive-toolbar">
-          {inputSelector}
-          {rotationSelector}
-          <button className="secondary" onClick={() => void fullscreen.leave()}>
-            <ChevronLeft size={16} />
-            Вийти
+        <div
+          className="immersive-toolbar"
+          role="toolbar"
+          aria-label="Панель гри"
+        >
+          <button
+            className="secondary immersive-back"
+            aria-label="Вийти"
+            title="Вийти з повного екрана"
+            onClick={() => void fullscreen.leave()}
+          >
+            <ChevronLeft size={19} />
           </button>
-          <button className="secondary" onClick={() => setShowControls(true)}>
-            <Keyboard size={16} />
-            Клавіатура
-          </button>
-          <button className="secondary" onClick={() => setShowSaves(true)}>
-            <HardDrive size={16} />
-            Збереження
+          <strong className="immersive-title" title={game.metadata.name}>
+            {game.metadata.name}
+          </strong>
+          <button
+            className="secondary"
+            aria-label="Меню гри"
+            aria-haspopup="dialog"
+            aria-expanded={showMenu}
+            onClick={() => setShowMenu(true)}
+          >
+            <Menu size={18} />
+            Меню
           </button>
           <button
             className="secondary"
             disabled={working}
             onClick={() => void run(running ? stop : launch)}
           >
-            {running ? <Square size={15} /> : <Play size={15} />}{" "}
+            {running ? <Square size={17} /> : <Play size={17} />}{" "}
             {running ? "Стоп" : "Грати"}
           </button>
         </div>
+      )}
+      {fullscreen.active && showMenu && (
+        <Modal
+          title="Меню гри"
+          className="player-menu"
+          close={() => setShowMenu(false)}
+        >
+          <div className="player-menu-settings">
+            {inputSelector}
+            {rotationSelector}
+          </div>
+          <div className="player-menu-actions">
+            <button
+              className="secondary"
+              onClick={() => {
+                setShowMenu(false);
+                setShowControls(true);
+              }}
+            >
+              <Keyboard size={19} />
+              Клавіатура
+            </button>
+            <button
+              className="secondary"
+              onClick={() => {
+                setShowMenu(false);
+                setShowSaves(true);
+              }}
+            >
+              <HardDrive size={19} />
+              Збереження
+            </button>
+            <button
+              className="secondary"
+              disabled={!running}
+              onClick={() =>
+                void run(async () => {
+                  download(
+                    await adapter.captureScreenshot(),
+                    game.metadata.name + ".png",
+                  );
+                  setShowMenu(false);
+                })
+              }
+            >
+              <Camera size={19} />
+              Скріншот
+            </button>
+            <button className="primary" onClick={() => setShowMenu(false)}>
+              Повернутися до гри
+            </button>
+          </div>
+        </Modal>
       )}
       <div className="player-heading">
         <button
