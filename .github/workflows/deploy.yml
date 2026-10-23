@@ -1,0 +1,79 @@
+name: Test, build and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: java-retro-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-and-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Java 8 for the bridge and test MIDlet
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "8"
+      - run: npm ci
+      - run: npm run engine:prepare
+      - run: npm test
+      - run: npm run build
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
+      - name: Real emulator and profile integration tests
+        run: npm run test:e2e
+      - name: Production PWA integration tests
+        run: npm run test:pwa
+      - name: Validate deployment scripts
+        run: |
+          bash -n deploy/upload.sh deploy/deploy.sh deploy/smoke-test.sh
+          shellcheck deploy/upload.sh deploy/deploy.sh deploy/smoke-test.sh
+          APP_IMAGE=retro-java-emulator-pwa:${{ github.sha }} docker compose -f deploy/compose.yaml config -q
+      - name: Build deployment image
+        run: docker build --build-arg VCS_REF="$GITHUB_SHA" --tag "retro-java-emulator-pwa:$GITHUB_SHA" .
+      - name: Test production Docker image
+        env:
+          APP_IMAGE: retro-java-emulator-pwa:${{ github.sha }}
+          APP_PORT: "18087"
+        run: bash deploy/smoke-test.sh
+      - name: Export deployment image
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: docker save "retro-java-emulator-pwa:$GITHUB_SHA" | gzip -1 > "$RUNNER_TEMP/image.tar.gz"
+      - name: Deploy only this application over SSH
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          DEPLOY_HOST: ${{ secrets.IP_SERVER }}
+          DEPLOY_USER: ${{ secrets.USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          DEPLOY_SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+          DEPLOY_APP_PORT: ${{ vars.APP_PORT || '18087' }}
+        run: bash deploy/upload.sh
+      - name: Save diagnostic artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-diagnostics
+          path: |
+            test-results/**/*.png
+            test-results/**/error-context.md
+          retention-days: 7

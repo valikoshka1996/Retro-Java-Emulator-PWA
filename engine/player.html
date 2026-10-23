@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Java Retro Player</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: #0b0e12;
+        color: #98a8b6;
+        font: 14px system-ui;
+      }
+      #screen-area {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #display {
+        image-rendering: pixelated;
+        outline: none;
+        touch-action: none;
+      }
+      #loading {
+        padding: 24px;
+        text-align: center;
+      }
+      #left-keys,
+      #right-keys {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="screen-area">
+      <canvas id="display" tabindex="0" style="display: none"></canvas>
+      <div id="loading">Завантаження CheerpJ…</div>
+    </div>
+    <div id="left-keys"></div>
+    <div id="right-keys"></div>
+    <script src="https://cjrtnc.leaningtech.com/20260317_2978/loader.js"></script>
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>

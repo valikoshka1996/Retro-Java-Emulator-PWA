@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.cache/
+test-results/
+playwright-report/
+*.tsbuildinfo
+vendor/freej2me-web/.git/
+public/engine/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.tar
+*.tar.gz
+deploy/*.env

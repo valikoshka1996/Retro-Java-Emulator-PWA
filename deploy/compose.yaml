@@ -1,0 +1,24 @@
+name: retro-java-emulator-pwa
+services:
+  web:
+    image: ${APP_IMAGE:?Set APP_IMAGE to the locally loaded release image}
+    pull_policy: never
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PORT:-18087}:8080"
+    labels:
+      io.java-retro.app: retro-java-emulator-pwa
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.50
+    pids_limit: 100
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
