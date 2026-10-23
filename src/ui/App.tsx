@@ -50,6 +50,9 @@ import {
 } from "../config";
 import { t } from "../i18n";
 import type { Game, EmulatorConfiguration, Action, Profile } from "../types";
+import { PhoneKeypad, TouchControlsEditor } from "./PhoneKeypad";
+import { normalizeTouchControls } from "../touch";
+import { useGameFullscreen } from "./useGameFullscreen";
 import { PwaSettings } from "../pwa/PwaControls";
 const date = (n?: number) =>
   n ? new Date(n).toLocaleDateString("uk-UA") : "Ще не запускали";
@@ -1379,6 +1382,13 @@ function KeyboardEditor({ game, run }: { game: Game; run: Run }) {
         <Keyboard size={17} />
         {saved ? "Збережено" : "Зберегти розкладку"}
       </button>
+      <details className="touch-design-settings">
+        <summary>Вигляд екранної клавіатури</summary>
+        <TouchControlsEditor
+          gameId={game.id}
+          value={game.configuration.touchControls}
+        />
+      </details>
     </section>
   );
 }
@@ -1566,7 +1576,12 @@ function Player({
   run: Run;
 }) {
   const host = useRef<HTMLDivElement>(null),
-    stage = useRef<HTMLDivElement>(null);
+    surface = useRef<HTMLDivElement>(null);
+  const fullscreen = useGameFullscreen(surface);
+  const [touchControls, setTouchControls] = useState(() =>
+    normalizeTouchControls(game.configuration.touchControls),
+  );
+  const [showControls, setShowControls] = useState(false);
   const [status, setStatus] = useState("Підготовка…"),
     [running, setRunning] = useState(false),
     [working, setWorking] = useState(true),
@@ -1675,7 +1690,37 @@ function Player({
     }
   };
   return (
-    <div className="content player-page">
+    <div
+      ref={surface}
+      className={
+        "content player-page" + (fullscreen.active ? " is-immersive" : "")
+      }
+      data-fullscreen-mode={fullscreen.mode || "window"}
+    >
+      {fullscreen.active && (
+        <div className="immersive-toolbar">
+          <button className="secondary" onClick={() => void fullscreen.leave()}>
+            <ChevronLeft size={16} />
+            Вийти
+          </button>
+          <button className="secondary" onClick={() => setShowControls(true)}>
+            <Keyboard size={16} />
+            Клавіатура
+          </button>
+          <button className="secondary" onClick={() => setShowSaves(true)}>
+            <HardDrive size={16} />
+            Збереження
+          </button>
+          <button
+            className="secondary"
+            disabled={working}
+            onClick={() => void run(running ? stop : launch)}
+          >
+            {running ? <Square size={15} /> : <Play size={15} />}{" "}
+            {running ? "Стоп" : "Грати"}
+          </button>
+        </div>
+      )}
       <div className="player-heading">
         <button
           className="text-link"
@@ -1733,13 +1778,15 @@ function Player({
         <button
           className="secondary"
           onClick={() =>
-            void run(async () => {
-              await stage.current?.requestFullscreen();
-            })
+            void (fullscreen.active ? fullscreen.leave() : fullscreen.enter())
           }
         >
           <Maximize size={16} />
           На весь екран
+        </button>
+        <button className="secondary" onClick={() => setShowControls(true)}>
+          <Keyboard size={16} />
+          Вигляд клавіатури
         </button>
         <button
           className="secondary"
@@ -1762,7 +1809,7 @@ function Player({
         </button>
       </div>
       <div className="player-layout">
-        <div ref={stage} className="player-stage">
+        <div className="player-stage">
           <div
             ref={host}
             className="emulator-host"
@@ -1778,67 +1825,17 @@ function Player({
             </div>
           )}
         </div>
-        <aside className="virtual-phone">
-          <span className="eyebrow">КЕРУВАННЯ</span>
-          <div className="virtual-dpad">
-            {(
-              [
-                "softLeft",
-                "up",
-                "softRight",
-                "left",
-                "fire",
-                "right",
-                null,
-                "down",
-                null,
-              ] as (Action | null)[]
-            ).map((a, i) =>
-              a ? (
-                <TouchKey
-                  key={a}
-                  action={a}
-                  adapter={adapter}
-                  disabled={!running}
-                />
-              ) : (
-                <span key={i} />
-              ),
-            )}
-          </div>
-          <div className="virtual-numbers">
-            {(
-              [
-                "1",
-                "2",
-                "3",
-                "4",
-                "5",
-                "6",
-                "7",
-                "8",
-                "9",
-                "star",
-                "0",
-                "hash",
-              ] as Action[]
-            ).map((a) => (
-              <TouchKey
-                key={a}
-                action={a}
-                adapter={adapter}
-                disabled={!running}
-              />
-            ))}
-          </div>
-          <p className="muted small">
-            Стрілки — рух · Enter — OK
+        <aside className="touch-controls">
+          <PhoneKeypad
+            configuration={touchControls}
+            adapter={adapter}
+            disabled={!running}
+          />
+          <p className="touch-controls-caption">
+            Стрілки / Enter · F1 / F2 · Gamepad
             <br />
-            F1 / F2 — soft keys
-            <br />
-            Gamepad підключається автоматично.
+            RMS — автокопія кожні 3 с
           </p>
-          <span className="badge">RMS · автокопія кожні 3 с</span>
         </aside>
       </div>
       <p className="hint">
@@ -1890,44 +1887,18 @@ function Player({
           />
         </Modal>
       )}
+      {showControls && (
+        <Modal title="Вигляд клавіатури" close={() => setShowControls(false)}>
+          <TouchControlsEditor
+            gameId={game.id}
+            value={touchControls}
+            onSaved={(value) => {
+              setTouchControls(value);
+              setShowControls(false);
+            }}
+          />
+        </Modal>
+      )}
     </div>
-  );
-}
-function TouchKey({
-  action,
-  adapter,
-  disabled,
-}: {
-  action: Action;
-  adapter: FreeJ2MEAdapter;
-  disabled: boolean;
-}) {
-  return (
-    <button
-      disabled={disabled}
-      aria-label={labels[action]}
-      onPointerDown={(e) => {
-        e.preventDefault();
-        e.currentTarget.setPointerCapture(e.pointerId);
-        adapter.sendKeyDown(action, "touch:" + e.pointerId);
-      }}
-      onPointerUp={(e) => adapter.sendKeyUp(action, "touch:" + e.pointerId)}
-      onLostPointerCapture={(e) =>
-        adapter.sendKeyUp(action, "touch:" + e.pointerId)
-      }
-      onPointerCancel={(e) => adapter.sendKeyUp(action, "touch:" + e.pointerId)}
-      onKeyDown={(e) => {
-        if (e.key === " " || e.key === "Enter") {
-          e.preventDefault();
-          adapter.sendKeyDown(action, "button:" + action);
-        }
-      }}
-      onKeyUp={(e) => {
-        if (e.key === " " || e.key === "Enter")
-          adapter.sendKeyUp(action, "button:" + action);
-      }}
-    >
-      {labels[action]}
-    </button>
   );
 }

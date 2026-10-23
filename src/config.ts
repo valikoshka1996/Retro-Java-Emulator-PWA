@@ -1,4 +1,5 @@
 import type { Action, EmulatorConfiguration, KeyboardMapping } from "./types";
+import { defaultTouchControls, validateTouchControls } from "./touch";
 export const actions: Action[] = [
   "up",
   "down",
@@ -84,8 +85,10 @@ export const defaultConfiguration = (): EmulatorConfiguration => ({
   fps: 0,
   midlet: "",
   keys: keyboardPreset("Nokia Classic"),
+  touchControls: defaultTouchControls(),
 });
 export function validateConfiguration(c: EmulatorConfiguration) {
+  if (c.touchControls !== undefined) validateTouchControls(c.touchControls);
   if (
     !Number.isInteger(c.width) ||
     !Number.isInteger(c.height) ||

@@ -11,6 +11,8 @@ import type {
 import { analyzeJar } from "./importer";
 import { safeUnzip, binaryBlob } from "./archive";
 import { validateConfiguration } from "./config";
+import { validateTouchControls } from "./touch";
+import type { TouchControlsConfiguration } from "./types";
 export class RetroDB extends Dexie {
   profiles!: EntityTable<Profile, "id">;
   games!: EntityTable<Game, "id">;
@@ -34,6 +36,23 @@ export class RetroDB extends Dexie {
   }
 }
 export const db = new RetroDB();
+export async function saveTouchControls(
+  gameId: string,
+  touchControls: TouchControlsConfiguration,
+  database = db,
+) {
+  validateTouchControls(touchControls);
+  await database.transaction("rw", database.games, async () => {
+    const game = await database.games.get(gameId);
+    if (!game) throw Error("Гру не знайдено.");
+    await database.games.update(gameId, {
+      configuration: {
+        ...game.configuration,
+        touchControls: { ...touchControls },
+      },
+    });
+  });
+}
 export async function createProfile(
   name: string,
   avatar = "👾",

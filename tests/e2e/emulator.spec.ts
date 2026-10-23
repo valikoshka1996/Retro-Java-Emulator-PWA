@@ -57,12 +57,21 @@ test("реальний MIDlet: RMS → стоп → закрити браузе�
       timeout: 15000,
     })
     .toBeGreaterThan(0.001);
-  await page.keyboard.press("Enter");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("button", { name: "На весь екран", exact: true })
+    .click();
+  await expect(page.locator(".is-immersive .key-fire")).toBeVisible();
+  await page.getByRole("button", { name: "OK", exact: true }).click();
   await expect
     .poll(() => logs.some((s) => s.includes("PROBE_SAVED:1")), {
       timeout: 30000,
     })
     .toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("real-mobile-fullscreen.png"),
+  });
+  await page.getByRole("button", { name: "Вийти", exact: true }).click();
   await page.getByRole("button", { name: "Збереження", exact: true }).click();
   await page.getByLabel("Назва резервної копії").fill("Before restart");
   await page.getByRole("button", { name: /Створити слот/ }).click();

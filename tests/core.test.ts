@@ -17,7 +17,14 @@ import {
   restoreSlot,
   exportProfile,
   importProfile,
+  saveTouchControls,
 } from "../src/db";
+import {
+  defaultTouchControls,
+  normalizeTouchControls,
+  validateTouchControls,
+} from "../src/touch";
+import { validateConfiguration } from "../src/config";
 const databases: RetroDB[] = [];
 function database() {
   const d = new RetroDB("test-" + crypto.randomUUID());
@@ -101,6 +108,50 @@ describe("JAR та аналіз сумісності", () => {
   });
 });
 describe("Профілі, IndexedDB та резервні копії", () => {
+  it("старі конфігурації працюють без touchControls; некоректні розміри відхиляються", async () => {
+    const a = await analyzeJar(await fixture(), "x.jar");
+    delete a.configuration.touchControls;
+    expect(() => validateConfiguration(a.configuration)).not.toThrow();
+    expect(normalizeTouchControls(a.configuration.touchControls)).toEqual(
+      defaultTouchControls(),
+    );
+    expect(() =>
+      validateTouchControls({ ...defaultTouchControls(), width: 999 }),
+    ).toThrow();
+    expect(() =>
+      validateTouchControls({ ...defaultTouchControls(), gap: NaN }),
+    ).toThrow();
+  });
+  it("вигляд клавіатури не перезаписує інші параметри і переноситься в архіві", async () => {
+    const d = database(),
+      p = await createProfile("Phone", "👾", d),
+      g = await installGame(p.id, await fixture(), "x.jar", undefined, d);
+    await d.games.update(g.id, {
+      configuration: {
+        ...g.configuration,
+        width: 176,
+        keys: { ...g.configuration.keys, up: "KeyI" },
+      },
+    });
+    const touch = {
+      ...defaultTouchControls(),
+      theme: "mint" as const,
+      width: 248,
+    };
+    await saveTouchControls(g.id, touch, d);
+    const saved = (await d.games.get(g.id))!;
+    expect(saved.configuration.width).toBe(176);
+    expect(saved.configuration.keys.up).toBe("KeyI");
+    const copy = await importProfile(await exportProfile(p.id, d), d);
+    const imported = await d.games.where({ profileId: copy.id }).first();
+    expect(imported?.configuration.touchControls).toEqual(touch);
+    await expect(
+      saveTouchControls(g.id, { ...touch, keyHeight: 500 }, d),
+    ).rejects.toThrow();
+    expect((await d.games.get(g.id))?.configuration.touchControls).toEqual(
+      touch,
+    );
+  });
   it("архів переносить залишені RMS видалених ігор", async () => {
     const d = database(),
       p = await createProfile("A", "👾", d),

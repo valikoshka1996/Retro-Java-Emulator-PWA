@@ -27,6 +27,15 @@ export type Action =
   | "star"
   | "hash";
 export type KeyboardMapping = Record<Action, string>;
+export interface TouchControlsConfiguration {
+  theme: "graphite" | "mint" | "violet" | "light";
+  width: number;
+  keyHeight: number;
+  gap: number;
+  radius: number;
+  showLetters: boolean;
+  align: "left" | "center" | "right";
+}
 export interface EmulatorConfiguration {
   mode: "auto" | "advanced";
   width: number;
@@ -41,6 +50,7 @@ export interface EmulatorConfiguration {
   fps: number;
   midlet: string;
   keys: KeyboardMapping;
+  touchControls?: TouchControlsConfiguration;
 }
 export interface GameMetadata {
   name: string;

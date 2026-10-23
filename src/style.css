@@ -1563,57 +1563,6 @@ dd {
   color: #657589;
   pointer-events: none;
 }
-.virtual-phone {
-  border: 1px solid #343e4d;
-  border-radius: 12px;
-  background: #1c222d;
-  padding: 22px;
-  align-self: start;
-}
-.virtual-phone > .eyebrow {
-  display: block;
-  text-align: center;
-  margin-bottom: 25px;
-}
-.virtual-dpad,
-.virtual-numbers {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-.virtual-dpad {
-  margin-bottom: 18px;
-}
-.virtual-phone button {
-  touch-action: none;
-  user-select: none;
-  min-height: 48px;
-  border: 1px solid #48546a;
-  background: linear-gradient(#384355, #29313f);
-  border-radius: 8px;
-  box-shadow: 0 3px #111924;
-  font-size: 15px;
-  font-weight: 700;
-  color: #c2cddd;
-}
-.virtual-phone button:active:not(:disabled) {
-  transform: translateY(2px);
-  box-shadow: 0 1px #111924;
-  background: #477365;
-}
-.virtual-dpad button:first-child,
-.virtual-dpad button:nth-child(3) {
-  font-size: 9px;
-  padding: 4px;
-}
-.virtual-phone > p {
-  font-size: 10px;
-  line-height: 2;
-  margin: 24px 0 18px;
-}
-.virtual-phone > .badge {
-  font-size: 8px;
-}
 .diagnostics {
   margin: 25px 0;
 }
@@ -1743,9 +1692,6 @@ dd {
   }
   .player-layout {
     grid-template-columns: 1fr 220px;
-  }
-  .virtual-phone {
-    padding: 17px;
   }
   .player-stage {
     min-height: 470px;
@@ -1945,32 +1891,6 @@ dd {
   }
   .player-stage {
     min-height: 400px;
-  }
-  .virtual-phone {
-    max-width: 430px;
-    width: 100%;
-    justify-self: center;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-  .virtual-phone > .eyebrow {
-    grid-column: 1/-1;
-    margin: 0;
-  }
-  .virtual-phone > .virtual-dpad {
-    margin: 0;
-  }
-  .virtual-phone > p {
-    grid-column: 1/-1;
-    margin: 0;
-  }
-  .virtual-phone > .badge {
-    grid-column: 1/-1;
-    justify-content: center;
-  }
-  .virtual-phone button {
-    min-height: 43px;
   }
   .player-heading .badge {
     margin-left: 0;
@@ -2237,22 +2157,6 @@ dd {
   .emulator-host {
     height: 420px;
   }
-  .virtual-phone {
-    gap: 12px;
-    padding: 16px;
-  }
-  .virtual-phone button {
-    font-size: 13px;
-    min-height: 40px;
-  }
-  .virtual-dpad,
-  .virtual-numbers {
-    gap: 6px;
-  }
-  .virtual-dpad button:first-child,
-  .virtual-dpad button:nth-child(3) {
-    font-size: 7px;
-  }
   .hint {
     font-size: 10px;
     padding: 12px;
@@ -2401,5 +2305,364 @@ dd {
   .sidebar {
     top: env(safe-area-inset-top);
     bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* A single, resizable phone keypad; navigation always stays above the digits. */
+.touch-controls {
+  align-self: center;
+  min-width: 0;
+  width: 100%;
+}
+.phone-keypad-align {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+}
+.phone-keypad-align.align-left {
+  justify-content: flex-start;
+}
+.phone-keypad-align.align-right {
+  justify-content: flex-end;
+}
+.phone-keypad {
+  --pad-gap: var(--requested-gap);
+  --key-bg: #303a49;
+  --key-border: #4b586c;
+  --key-text: #e2eaf5;
+  --pad-bg: #1b222d;
+  --pad-accent: #71ebc5;
+  --actual-key-height: var(--key-height);
+  width: var(--pad-width);
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid var(--key-border);
+  border-radius: 18px;
+  background: var(--pad-bg);
+  box-shadow: inset 0 1px #ffffff08;
+  flex-shrink: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.phone-keypad.theme-mint {
+  --key-bg: #183e36;
+  --key-border: #3e7967;
+  --key-text: #d6fff0;
+  --pad-bg: #102b25;
+  --pad-accent: #7af4c7;
+}
+.phone-keypad.theme-violet {
+  --key-bg: #3a2c50;
+  --key-border: #6d528f;
+  --key-text: #efe3ff;
+  --pad-bg: #231b32;
+  --pad-accent: #c6a0ff;
+}
+.phone-keypad.theme-light {
+  --key-bg: #f4f5ef;
+  --key-border: #a9b2aa;
+  --key-text: #1a352a;
+  --pad-bg: #d8dfd6;
+  --pad-accent: #236f54;
+}
+.phone-navigation,
+.phone-numpad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--pad-gap);
+}
+.phone-navigation {
+  grid-template-rows: repeat(
+    3,
+    minmax(22px, calc(var(--actual-key-height) * 0.74))
+  );
+  margin-bottom: calc(var(--pad-gap) + 3px);
+}
+.phone-numpad {
+  grid-auto-rows: var(--actual-key-height);
+}
+.phone-key {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--key-border);
+  border-radius: var(--key-radius);
+  background: var(--key-bg);
+  color: var(--key-text);
+  box-shadow:
+    0 2px #0005,
+    inset 0 1px #ffffff0c;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  touch-action: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  gap: 3px;
+}
+.phone-key small {
+  font-size: 7px;
+  color: var(--key-text);
+  opacity: 0.65;
+  line-height: 1;
+  letter-spacing: 1.2px;
+}
+.phone-navigation .phone-key {
+  font-size: 17px;
+}
+.phone-navigation .key-softLeft,
+.phone-navigation .key-softRight {
+  font-size: 10px;
+  border-radius: var(--key-radius);
+  color: var(--pad-accent);
+}
+.phone-navigation .key-fire {
+  color: var(--pad-accent);
+  font-size: 12px;
+  border-color: var(--pad-accent);
+}
+.phone-key:active:not(:disabled) {
+  background: var(--pad-accent);
+  color: var(--pad-bg);
+  transform: translateY(1px);
+  box-shadow: 0 1px #0005;
+}
+.touch-controls-caption {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #7e90a4;
+  margin: 15px 0 0;
+  text-align: center;
+}
+.keypad-preview {
+  pointer-events: none;
+}
+.keypad-preview button:disabled {
+  opacity: 1;
+}
+.touch-design-settings {
+  border-top: 1px solid var(--line);
+  margin-top: 25px;
+  padding-top: 20px;
+}
+.touch-design-settings > summary {
+  margin-bottom: 20px;
+}
+.touch-presets {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 18px 0 24px;
+}
+.touch-presets .secondary {
+  font-size: 10px;
+  min-height: 35px;
+  padding: 8px 11px;
+}
+.touch-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(200px, 1.15fr);
+  gap: 25px;
+  align-items: start;
+  margin-bottom: 25px;
+}
+.touch-editor-fields {
+  display: grid;
+  gap: 18px;
+}
+.touch-editor-fields label {
+  font-size: 11px;
+  position: relative;
+}
+.touch-editor-fields select {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.touch-editor-fields input[type="range"] {
+  width: 100%;
+  height: 26px;
+  padding: 0;
+  margin-top: 8px;
+  accent-color: var(--accent);
+  border: 0;
+  touch-action: pan-y;
+}
+.touch-editor-fields output {
+  float: right;
+  color: #8ba59b;
+  font: 10px monospace;
+  margin-top: 1px;
+}
+.touch-editor-fields .checkbox {
+  font-size: 11px;
+  line-height: 1.6;
+}
+.touch-preview {
+  min-width: 0;
+  overflow: hidden;
+  align-self: center;
+}
+.touch-preview > .eyebrow {
+  display: block;
+  text-align: center;
+  font-size: 8px;
+  margin-bottom: 18px;
+}
+.immersive-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+.immersive-toolbar .secondary {
+  font-size: 10px;
+  min-height: 32px;
+  padding: 7px 10px;
+  gap: 6px;
+}
+body.game-immersive .sidebar,
+body.game-immersive .topbar,
+body.game-immersive .pwa-notice {
+  display: none;
+}
+.player-page.is-immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  height: 100vh;
+  height: 100dvh;
+  padding: max(6px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+  background: #0b0e12;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  overflow: hidden;
+}
+.player-page.is-immersive > .player-heading,
+.player-page.is-immersive > .player-toolbar,
+.player-page.is-immersive > .hint,
+.player-page.is-immersive > .diagnostics,
+.player-page.is-immersive > .text-link,
+.player-page.is-immersive > p {
+  display: none;
+}
+.is-immersive .player-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 6px;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.is-immersive .player-stage {
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: #090d12;
+}
+.is-immersive .emulator-host {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  min-height: 0;
+}
+.is-immersive .touch-controls {
+  padding: 0;
+  min-height: 0;
+  max-height: 60dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.is-immersive .touch-controls-caption {
+  display: none;
+}
+.is-immersive .phone-keypad {
+  --actual-key-height: min(
+    var(--key-height),
+    max(
+      28px,
+      calc((min(55dvh, 100dvh - 240px) - 19px - var(--pad-gap) * 6) / 6.22)
+    )
+  );
+  padding: 8px;
+}
+@media (min-width: 801px) {
+  .player-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 340px);
+  }
+}
+@media (max-width: 600px) {
+  .touch-editor-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 25px;
+  }
+  .touch-editor-fields {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .touch-editor-fields .checkbox {
+    grid-column: 1/-1;
+  }
+  .touch-preview {
+    width: 100%;
+  }
+  .touch-editor-fields select {
+    font-size: 11px;
+    padding: 10px;
+  }
+  .touch-editor-fields output {
+    float: none;
+    display: block;
+    margin-top: 5px;
+  }
+  .immersive-toolbar {
+    gap: 4px;
+  }
+  .immersive-toolbar .secondary {
+    padding: 7px 8px;
+    font-size: 9px;
+    gap: 4px;
+  }
+  .immersive-toolbar svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+@media (orientation: landscape) and (min-width: 600px) {
+  .is-immersive .player-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(190px, 300px);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .is-immersive .touch-controls {
+    max-height: 100%;
+    overflow: auto;
+  }
+  .is-immersive .phone-keypad {
+    --actual-key-height: min(
+      var(--key-height),
+      max(26px, calc((100dvh - 110px) / 6.3))
+    );
+    --pad-gap: min(4px, var(--requested-gap, 4px));
+  }
+  .is-immersive .touch-controls-caption {
+    display: none;
   }
 }
